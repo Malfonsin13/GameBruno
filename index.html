@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="es">
 <head>
@@ -6,24 +5,180 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>LA RED AZUL</title>
 <style>
-  html, body { background:#05060b; margin:0; height:100%; color:#d7eaff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
-  #wrap { display:flex; align-items:center; justify-content:center; height:100%; }
-  canvas { background:#02030a; border:1px solid #0ff; box-shadow:0 0 24px rgba(0,255,255,0.25), inset 0 0 24px rgba(0,180,255,0.15); outline:none; }
-  .hud { position:absolute; top:8px; left:50%; transform:translateX(-50%); font-size:14px; letter-spacing:0.5px; color:#aeeaff; text-shadow:0 0 8px #00e5ff; }
-  .btn { cursor:pointer; padding:10px 16px; border:1px solid #0ff; border-radius:10px; background:rgba(0,255,255,0.08); color:#bff4ff; text-shadow:0 0 8px #00e5ff; box-shadow:0 0 10px rgba(0,255,255,0.25); }
-  .panel { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:8px; }
-  .msg { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:78%; max-width:780px; padding:18px 16px; background:rgba(2,12,24,0.92); border:1px solid #0ff; border-radius:14px; box-shadow:0 0 30px rgba(0,255,255,0.25); }
-  .msg h2 { margin:0 0 8px 0; color:#7ee0ff; text-shadow:0 0 10px #00e5ff; font-weight:700; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-  .choice { flex:1 1 220px; border:1px solid #39f; border-radius:10px; padding:10px; background:rgba(0,60,120,0.15); cursor:pointer; }
-  .choice:hover { background:rgba(0,160,255,0.15); }
-  .inv { position:absolute; top:8px; left:12px; font-size:13px; color:#b6f3ff }
-  .badge { display:inline-block; margin-right:8px; padding:2px 8px; border:1px solid #0ff; border-radius:999px; }
-  .titleGlow { font-weight:900; font-size:44px; letter-spacing:2px; color:#8be9ff; text-shadow:0 0 10px #00e5ff, 0 0 30px #00d0ff, 0 0 60px #00b0ff; }
-  .subGlow { color:#9cf; text-shadow:0 0 8px #00e5ff; }
-  .focusHint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; color:#7cf; opacity:0.0; transition:opacity .2s; }
+  html, body {
+    background:#05060b;
+    margin:0;
+    height:100%;
+    color:#d7eaff;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+  }
+  #wrap {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:8px;
+    box-sizing:border-box;
+    position:relative;
+  }
+  canvas {
+    background:#02030a;
+    border:1px solid #0ff;
+    box-shadow:0 0 24px rgba(0,255,255,0.25), inset 0 0 24px rgba(0,180,255,0.15);
+    outline:none;
+    width:100%;
+    max-width:900px;
+    height:auto;
+    aspect-ratio:900/560;
+    box-sizing:border-box;
+  }
+  .hud {
+    position:absolute;
+    top:8px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:14px;
+    letter-spacing:0.5px;
+    color:#aeeaff;
+    text-shadow:0 0 8px #00e5ff;
+  }
+  .btn {
+    cursor:pointer;
+    padding:10px 16px;
+    border:1px solid #0ff;
+    border-radius:10px;
+    background:rgba(0,255,255,0.08);
+    color:#bff4ff;
+    text-shadow:0 0 8px #00e5ff;
+    box-shadow:0 0 10px rgba(0,255,255,0.25);
+  }
+  .panel {
+    position:absolute;
+    bottom:12px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:8px;
+  }
+  .msg {
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    width:78%;
+    max-width:780px;
+    padding:18px 16px;
+    background:rgba(2,12,24,0.92);
+    border:1px solid #0ff;
+    border-radius:14px;
+    box-shadow:0 0 30px rgba(0,255,255,0.25);
+  }
+  .msg h2 {
+    margin:0 0 8px 0;
+    color:#7ee0ff;
+    text-shadow:0 0 10px #00e5ff;
+    font-weight:700;
+  }
+  .row {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:12px;
+  }
+  .choice {
+    flex:1 1 220px;
+    border:1px solid #39f;
+    border-radius:10px;
+    padding:10px;
+    background:rgba(0,60,120,0.15);
+    cursor:pointer;
+  }
+  .choice:hover {
+    background:rgba(0,160,255,0.15);
+  }
+  .inv {
+    position:absolute;
+    top:8px;
+    left:12px;
+    font-size:13px;
+    color:#b6f3ff;
+  }
+  .badge {
+    display:inline-block;
+    margin-right:8px;
+    padding:2px 8px;
+    border:1px solid #0ff;
+    border-radius:999px;
+  }
+  .focusHint {
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+    color:#7cf;
+    opacity:0.0;
+    transition:opacity .2s;
+  }
   .focusHint.show { opacity:0.9; }
   .hud, .panel, .inv { pointer-events: none; }
+
+  /* On-screen touch controls (only for mobile/touch) */
+  .touchControls {
+    position:absolute;
+    bottom:12px;
+    right:12px;
+    display:none;
+    flex-direction:column;
+    gap:4px;
+    z-index:10;
+    pointer-events:auto;
+  }
+  .tc-row {
+    display:flex;
+    justify-content:center;
+    gap:6px;
+  }
+  .tc-btn {
+    width:46px;
+    height:46px;
+    border-radius:50%;
+    border:1px solid #0ff;
+    background:rgba(0,255,255,0.08);
+    color:#bff4ff;
+    font-size:20px;
+    cursor:pointer;
+    box-shadow:0 0 10px rgba(0,255,255,0.25);
+    text-shadow:0 0 6px #00e5ff;
+  }
+  .tc-btn:active {
+    background:rgba(0,255,255,0.25);
+  }
+  body.touch .touchControls {
+    display:flex;
+  }
+
+  @media (max-width: 768px) {
+    #wrap { padding:6px; }
+    .msg {
+      width:92%;
+      max-width:none;
+    }
+    .hud {
+      font-size:12px;
+      top:4px;
+    }
+    .inv {
+      font-size:12px;
+      top:auto;
+      bottom:4px;
+    }
+    body.touch .panel {
+      bottom:70px; /* lift choice panel above D-pad */
+    }
+  }
 </style>
 </head>
 <body>
@@ -32,7 +187,19 @@
   <div class="hud" id="hud"></div>
   <div class="panel" id="panel"></div>
   <div class="inv" id="inv"></div>
-  <div class="focusHint" id="focusHint"><div class="btn">Click sobre el juego para activar el teclado</div></div>
+  <div class="focusHint" id="focusHint"><div class="btn">Click / tap sobre el juego para activar el teclado</div></div>
+
+  <!-- On-screen D-pad for mobile / touch -->
+  <div class="touchControls" id="touchControls">
+    <div class="tc-row">
+      <button class="tc-btn" data-dir="ArrowUp">▲</button>
+    </div>
+    <div class="tc-row">
+      <button class="tc-btn" data-dir="ArrowLeft">◀</button>
+      <button class="tc-btn" data-dir="ArrowDown">▼</button>
+      <button class="tc-btn" data-dir="ArrowRight">▶</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -40,7 +207,7 @@
 'use strict';
 
 /* ================================
-   Núcleo: canvas + utilidades
+   Núcleo
 ===================================*/
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -48,12 +215,23 @@ const HUD = document.getElementById('hud');
 const PANEL = document.getElementById('panel');
 const INV = document.getElementById('inv');
 const FOCUS = document.getElementById('focusHint');
+const touchControls = document.getElementById('touchControls');
 
 const W = canvas.width, H = canvas.height;
 let last = 0;
 const keys = new Set();
 const justPressed = new Set();
 const keyBlock = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ']);
+
+// detect touch / mobile to adapt controls & layout
+const isTouch = ('ontouchstart' in window) ||
+                (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+                /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+if (isTouch) {
+  document.body.classList.add('touch');
+}
+
+let touchDir = null; // current direction from D-pad (ArrowUp/Down/Left/Right)
 
 document.addEventListener('keydown', (e) => {
   if (document.activeElement === canvas && keyBlock.has(e.key)) e.preventDefault();
@@ -63,46 +241,29 @@ canvas.addEventListener('keyup', (e) => { keys.delete(e.key); });
 
 const DIRS = { U:{dr:-1,dc:0}, D:{dr:1,dc:0}, L:{dr:0,dc:-1}, R:{dr:0,dc:1} };
 const OPP  = { U:'D', D:'U', L:'R', R:'L' };
-
-function isAligned(e){
-  return Math.abs(e.r - Math.round(e.r)) < 0.08 &&
-         Math.abs(e.c - Math.round(e.c)) < 0.08;
-}
-function canMoveRC(r, c, dir){
-  const d = DIRS[dir];
-  return !isWall(r + d.dr, c + d.dc);
-}
+function perf(){ return performance.now()/1000; }
+function isAligned(e){ return Math.abs(e.r - Math.round(e.r)) < 0.08 && Math.abs(e.c - Math.round(e.c)) < 0.08; }
 
 /* ================================
-   Estado global de la aventura
+   Estado global
 ===================================*/
-const state = {
-  inventory: { chipAzul: false, acertijo: false },
-  scene: 'menu',
-  lives: 3,
-  dotsLeft: 0
-};
+const state = { inventory: { chipAzul: false, acertijo: false }, scene: 'menu', lives: 3, dotsLeft: 0 };
 
 function setScene(name, data={}){
   currentScene = scenes[name];
   currentScene.enter?.(data);
   state.scene = name;
-  flashFocusHint();
-}
-function flashFocusHint(){
   if (document.activeElement !== canvas) {
     FOCUS.classList.add('show');
     setTimeout(()=>FOCUS.classList.remove('show'), 1200);
   }
 }
 
-/* ================================
-   Sistema de escenas
-===================================*/
+/* escenas */
 let currentScene;
 const scenes = {};
 
-/* ======= Escena: Menú ======= */
+/* ======= Menú ======= */
 scenes.menu = {
   enter(){ HUD.textContent = ""; PANEL.innerHTML = ""; },
   update(dt){},
@@ -121,7 +282,12 @@ scenes.menu = {
     ctx.fillText('Aventura gráfica + Arcade Tron', W/2, 215);
     ctx.fillStyle='#bfe9ff';
     ctx.font='400 16px system-ui';
-    ctx.fillText('Enter: Comenzar   •   Flechas: mover   •   Click: interactuar', W/2, 250);
+
+    const controlText = isTouch
+      ? 'Toca el D-pad para mover • Tap para interactuar'
+      : 'Enter: Comenzar   •   Flechas: mover   •   Click: interactuar';
+    ctx.fillText(controlText, W/2, 250);
+
     const bx = W/2 - 120, by = 300, bw = 240, bh = 50;
     drawButton(bx,by,bw,bh,'COMENZAR');
     hoverButton(bx,by,bw,bh, () => setScene('aventura'));
@@ -129,45 +295,38 @@ scenes.menu = {
   }
 };
 
-/* ======= Escena: Aventura ======= */
+/* ======= Aventura ======= */
 scenes.aventura = {
   enter(){
-    HUD.textContent = "Sector: Vestíbulo de la Red — Explora con el mouse. Resuelve el acertijo y consigue el CHIP (arcade) para abrir el Núcleo.";
+    HUD.textContent = "Sector: Vestíbulo — Resuelve acertijo y consigue el CHIP (arcade) para abrir el Núcleo.";
     PANEL.innerHTML = "";
   },
   update(dt){},
   draw(){
     drawNeonGrid('#06182a','#00243d');
-    const orac =  {x:120,y:220,w:180,h:100, label:"Oráculo de Luz"};
-    const arcade={x:360,y:320,w:180,h:100, label:"Terminal Tron"};
+    const orac  = {x:120,y:220,w:180,h:100, label:"Oráculo de Luz"};
+    const arcade= {x:360,y:320,w:180,h:100, label:"Terminal Tron"};
     const core  = {x:620,y:200,w:160,h:160, label:"Puerta del Núcleo"};
-
     drawModule(orac,  '#00e5ff');
     drawModule(arcade,'#ff00de');
     drawModule(core,  '#00ff8f');
-
     hoverBox(orac,   () => tip('Habla con el Oráculo (acertijo)'));
     hoverBox(arcade, () => tip('Ejecutar minijuego — conseguir CHIP AZUL'));
     hoverBox(core,   () => tip('Abrir Núcleo'));
-
     clickBox(orac,   () => abrirAcertijo());
     clickBox(arcade, () => setScene('arcade'));
     clickBox(core,   () => {
       if (state.inventory.acertijo && state.inventory.chipAzul) setScene('final');
-      else speak("Núcleo Bloqueado", "Te faltan requisitos.",
-                 ["Falta acertijo resuelto","Falta CHIP AZUL","Volver"], ()=>{});
+      else speak("Núcleo Bloqueado","Te faltan requisitos.",["Falta acertijo resuelto","Falta CHIP AZUL","Volver"],()=>{});
     });
-
     renderInventario();
   }
 };
 
 function abrirAcertijo(onDone){
   const Q = [
-    { p: "Tengo ciudades pero no casas, montañas pero no árboles y agua pero no peces. ¿Qué soy?",
-      opts: ["Un mapa","Un circuito","Un holograma","Una base de datos"], ok: 0 },
-    { p: "En la RED AZUL, ¿qué camino es más corto entre dos nodos?",
-      opts: ["El de menor peso","El con más aristas","El más vistoso","El que evita el centro"], ok: 0 },
+    { p: "Tengo ciudades pero no casas, montañas pero no árboles y agua pero no peces. ¿Qué soy?", opts: ["Un mapa","Un circuito","Un holograma","Una base de datos"], ok: 0 },
+    { p: "En la RED AZUL, ¿qué camino es más corto entre dos nodos?", opts: ["El de menor peso","El con más aristas","El más vistoso","El que evita el centro"], ok: 0 },
     { p: "Un byte son…", opts: ["8 bits","4 bits","16 bits","1 bit"], ok: 0 }
   ];
   let i = 0, aciertos = 0;
@@ -191,35 +350,69 @@ function abrirAcertijo(onDone){
   };
   preguntar();
 }
+function abrirAcertijoArcade(){ arcadePaused = true; abrirAcertijo(()=> { arcadePaused = false; }); }
 
-function abrirAcertijoArcade(){
-  arcadePaused = true;
-  abrirAcertijo(()=> { arcadePaused = false; });
-}
-
-/* ======= Escena: Arcade ======= */
-const TILE = 24;
-const COLS = 25;
-const ROWS = 17;
-
+/* ======= Arcade ======= */
+const TILE = 24, COLS = 25, ROWS = 17;
 let mapGrid, player, ghosts, dots;
+let tokens = new Set();
 let specialDots = {};
 let arcadePaused = false;
+let pendingQuiz = false;
+
+/* Tron trail */
+let trailActive = false, trailExpireAt = 0;
+let trailCells = new Map();    // "r,c" -> expireTime
+let lastTrailKey = null;
+
+/* Secret hideout (perimeter cell) */
+const hideout = { r: (ROWS/2)|0, c: 0, enterDir: 'L' }; // enter from inside moving Left into c=0
+let inHideout = false, hideoutDeadline = 0;
 
 function createMap(){
   const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>1));
   const carve = (r0,c0,r1,c1) => { for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) g[r][c]=0; };
   carve(1,1,ROWS-2,COLS-2);
-  for(let r=3;r<ROWS-3;r+=4){ for(let c=2;c<COLS-2;c++){ if (c%6!==0) g[r][c]=1; } }
-  for(let c=4;c<COLS-4;c+=6){ for(let r=2;r<ROWS-2;r++){ if (r%6!==0) g[r][c]=1; } }
+  for(let r=3;r<ROWS-3;r+=4){
+    for(let c=2;c<COLS-2;c++){
+      if (c%6!==0) g[r][c]=1;
+    }
+  }
+  for(let c=4;c<COLS-4;c+=6){
+    for(let r=2;r<ROWS-2;r++){
+      if (r%6!==0) g[r][c]=1;
+    }
+  }
   g[(ROWS/2)|0][(COLS/2)|0]=0;
 
-  dots = new Set();
-  for(let r=1;r<ROWS-1;r++) for(let c=1;c<COLS-1;c++) if (g[r][c]===0) dots.add(r+','+c);
+  for (let r=2;r<ROWS-2;r++){
+    for (let c=2;c<COLS-2;c++){
+      if (g[r][c]===1 && Math.random()<0.18) g[r][c]=0;
+    }
+  }
 
+  // dots
+  dots = new Set();
+  for(let r=1;r<ROWS-1;r++)
+    for(let c=1;c<COLS-1;c++)
+      if (g[r][c]===0) dots.add(r+','+c);
+
+  // mid-room oracle trigger
   specialDots = {};
   const sr = (ROWS/2)|0, sc = (COLS/2)|0;
   specialDots[ sr+','+(sc+2) ] = 'oraculo';
+
+  // tokens
+  tokens = new Set();
+  [[2,2],[2,COLS-3],[ROWS-3,2],[ROWS-3,COLS-3]].forEach(([r,c])=>{
+    if (g[r][c]===0) tokens.add(r+','+c);
+  });
+
+  // hideout entrance adjacent must be open
+  if (hideout.enterDir==='L') g[hideout.r][1] = 0;
+  if (hideout.enterDir==='R') g[hideout.r][COLS-2] = 0;
+  if (hideout.enterDir==='U') g[1][hideout.c] = 0;
+  if (hideout.enterDir==='D') g[ROWS-2][hideout.c] = 0;
 
   state.dotsLeft = dots.size;
   return g;
@@ -228,44 +421,111 @@ function createMap(){
 function spawnArcade(){
   mapGrid = createMap();
   player = { r: (ROWS-2)|0, c: 1, spd: 50.0, dir: null, want: null };
-  // Slightly different speeds to prevent sync
   ghosts = [
     { r:1,        c:COLS-2, spd:46, dir:'L', hue:300 },
     { r:1,        c:1,      spd:44, dir:'R', hue:200 },
     { r:ROWS-2,   c:COLS-2, spd:42, dir:'L', hue:50  }
   ];
+  trailActive = false; trailExpireAt = 0; trailCells.clear(); lastTrailKey=null;
+  inHideout=false; hideoutDeadline=0;
 }
 
-function isWall(r,c){
-  return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1;
+function isWall(r,c){ return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1; }
+function isTrailCell(r,c){
+  const k = r+','+c;
+  const t = trailCells.get(k);
+  return t !== undefined && t > perf();
+}
+function ghostBlocked(r,c){ return isWall(r,c) || isTrailCell(r,c) || (r===hideout.r && c===hideout.c); } // ghosts never enter hideout
+
+/* Player-only movement rules w/ hideout */
+function playerCanMoveRC(r, c, dir){
+  const d = DIRS[dir];
+  const nr = r + d.dr, nc = c + d.dc;
+
+  if (r===hideout.r && c===hideout.c){
+    return dir === OPP[hideout.enterDir] && !isWall(nr,nc);
+  }
+  if (nr===hideout.r && nc===hideout.c && dir===hideout.enterDir) return true;
+  return !isWall(nr,nc);
+}
+
+function activateTrail(seconds=10){ trailActive = true; trailExpireAt = perf() + seconds; }
+function updateTrail(){
+  const now = perf();
+  for (const [k,exp] of trailCells){
+    if (exp <= now) trailCells.delete(k);
+  }
+  if (trailActive && now >= trailExpireAt) trailActive = false;
+  if (trailActive && isAligned(player)){
+    const key = Math.round(player.r)+','+Math.round(player.c);
+    if (key !== lastTrailKey){
+      trailCells.set(key, now + 10.0);
+      lastTrailKey = key;
+    }
+  }
 }
 
 function handlePlayer(dt){
-  if (keys.has('ArrowUp'))    player.want = 'U';
-  else if (keys.has('ArrowDown'))  player.want = 'D';
-  else if (keys.has('ArrowLeft'))  player.want = 'L';
-  else if (keys.has('ArrowRight')) player.want = 'R';
+  // combine keyboard arrows + touch D-pad
+  const moveUp    = keys.has('ArrowUp')    || touchDir === 'ArrowUp';
+  const moveDown  = keys.has('ArrowDown')  || touchDir === 'ArrowDown';
+  const moveLeft  = keys.has('ArrowLeft')  || touchDir === 'ArrowLeft';
+  const moveRight = keys.has('ArrowRight') || touchDir === 'ArrowRight';
+
+  if (moveUp)        player.want = 'U';
+  else if (moveDown) player.want = 'D';
+  else if (moveLeft) player.want = 'L';
+  else if (moveRight)player.want = 'R';
 
   const step = (player.spd * dt) / TILE;
   const R = Math.round(player.r), C = Math.round(player.c);
 
   if (isAligned(player)){
-    if (player.want && canMoveRC(R, C, player.want)) player.dir = player.want;
-    if (!player.dir || !canMoveRC(R, C, player.dir)) { player.dir = null; player.r = R; player.c = C; }
+    if (player.want && playerCanMoveRC(R, C, player.want)) player.dir = player.want;
+    if (!player.dir || !playerCanMoveRC(R, C, player.dir)) {
+      player.dir = null;
+      player.r = R;
+      player.c = C;
+    }
   }
 
   if (player.dir){
     const d = DIRS[player.dir];
-    if (!canMoveRC(Math.round(player.r), Math.round(player.c), player.dir)){ player.r = Math.round(player.r); player.c = Math.round(player.c); player.dir = null; }
-    else { player.r += d.dr * step; player.c += d.dc * step; }
+    if (!playerCanMoveRC(Math.round(player.r), Math.round(player.c), player.dir)){
+      player.r = Math.round(player.r);
+      player.c = Math.round(player.c);
+      player.dir = null;
+    } else {
+      player.r += d.dr * step;
+      player.c += d.dc * step;
+    }
   }
 
   if (isAligned(player)){
     const key = R + ',' + C;
+
+    const now = perf();
+    if (R===hideout.r && C===hideout.c){
+      if (!inHideout){
+        inHideout = true;
+        hideoutDeadline = now + 10.0;
+      }
+    } else {
+      inHideout = false;
+    }
+
     if (dots.has(key)){
       dots.delete(key);
       state.dotsLeft = dots.size;
-      if (specialDots[key] === 'oraculo'){ delete specialDots[key]; abrirAcertijoArcade(); }
+      if (specialDots[key] === 'oraculo'){
+        delete specialDots[key];
+        abrirAcertijoArcade();
+      }
+    }
+    if (tokens.has(key)){
+      tokens.delete(key);
+      activateTrail(10);
     }
   }
 }
@@ -275,19 +535,17 @@ function stepGhost(g, dt, reserved){
   const GR = Math.round(g.r), GC = Math.round(g.c);
 
   if (isAligned(g)){
-    // Candidate dirs (no reverse, no walls)
     let options = ['U','L','D','R'].filter(d=>{
       if (g.dir && d === OPP[g.dir]) return false;
       const dd = DIRS[d];
-      return !isWall(GR + dd.dr, GC + dd.dc);
+      return !ghostBlocked(GR + dd.dr, GC + dd.dc);
     });
     if (options.length === 0){
       options = ['U','L','D','R'].filter(d=>{
         const dd = DIRS[d];
-        return !isWall(GR + dd.dr, GC + dd.dc);
+        return !ghostBlocked(GR + dd.dr, GC + dd.dc);
       });
     }
-    // Sort by chasing heuristic
     const PR = Math.round(player.r), PC = Math.round(player.c);
     options.sort((a,b)=>{
       const da = DIRS[a], db = DIRS[b];
@@ -297,23 +555,26 @@ function stepGhost(g, dt, reserved){
       const B = Math.abs(PR - rb) + Math.abs(PC - cb);
       return A - B;
     });
-    // Reservation: avoid picking a next cell already taken this frame
     let picked = null;
     for (const d of options){
       const dd = DIRS[d];
       const key = (GR + dd.dr) + ',' + (GC + dd.dc);
-      if (!reserved.has(key)){ picked = d; reserved.add(key); break; }
+      if (!reserved.has(key)){
+        picked = d;
+        reserved.add(key);
+        break;
+      }
     }
-    // If all reserved, stay or allow reverse as last resort
     g.dir = picked ?? options[0] ?? g.dir ?? null;
   }
 
-  if (g.dir && !isWall(Math.round(g.r) + DIRS[g.dir].dr,
-                       Math.round(g.c) + DIRS[g.dir].dc)){
+  if (g.dir && !ghostBlocked(Math.round(g.r) + DIRS[g.dir].dr,
+                             Math.round(g.c) + DIRS[g.dir].dc)){
     g.r += DIRS[g.dir].dr * step;
     g.c += DIRS[g.dir].dc * step;
   } else {
-    g.r = Math.round(g.r); g.c = Math.round(g.c);
+    g.r = Math.round(g.r);
+    g.c = Math.round(g.c);
   }
 }
 
@@ -326,6 +587,23 @@ function checkLose(){
   return false;
 }
 
+function scatterGhosts(){
+  ghosts[0].r=1;        ghosts[0].c=COLS-2; ghosts[0].dir='L';
+  ghosts[1].r=1;        ghosts[1].c=1;      ghosts[1].dir='R';
+  ghosts[2].r=ROWS-2;   ghosts[2].c=COLS-2; ghosts[2].dir='L';
+}
+
+function ask8BitQuestion(done){
+  const Q = [
+    { p:"¿Qué CPU usa el Commodore 64?", opts:["MOS 6510","Zilog Z80","Motorola 68000","Intel 8086"], ok:0 },
+    { p:"¿Cuántos canales de sonido tiene el chip SID del C64?", opts:["3","1","6","8"], ok:0 },
+    { p:"El Zilog Z80 es un procesador de…", opts:["8 bits","12 bits","16 bits","4 bits"], ok:0 },
+    { p:"¿Qué consola popularizó los cartuchos de 8-bit en 1983?", opts:["NES/Famicom","Atari Jaguar","PlayStation","Dreamcast"], ok:0 }
+  ];
+  const q = Q[(Math.random()*Q.length)|0];
+  speak("Desafío 8-bit", q.p, q.opts, (pick)=> done(pick===q.ok));
+}
+
 function drawArcade(){
   const offX = (W - COLS*TILE)/2|0;
   const offY = (H - ROWS*TILE)/2|0;
@@ -335,6 +613,7 @@ function drawArcade(){
 
   ctx.save();
   ctx.translate(offX, offY);
+
   for(let r=0;r<ROWS;r++){
     for(let c=0;c<COLS;c++){
       if(mapGrid[r][c]===1){
@@ -342,6 +621,7 @@ function drawArcade(){
       }
     }
   }
+
   ctx.shadowColor = '#00ffff';
   ctx.shadowBlur = 12;
   ctx.fillStyle = '#aafaff';
@@ -353,13 +633,27 @@ function drawArcade(){
   });
   ctx.shadowBlur = 0;
 
+  tokens.forEach(k=>{
+    const [r,c] = k.split(',').map(Number);
+    neonRect(c*TILE+6, r*TILE+6, TILE-12, TILE-12, '#00ffbf', 10);
+  });
+
+  for (const [k,exp] of trailCells){
+    const [r,c] = k.split(',').map(Number);
+    ctx.fillStyle='rgba(0,255,191,0.15)';
+    ctx.fillRect(c*TILE+4, r*TILE+4, TILE-8, TILE-8);
+    neonRect(c*TILE+4, r*TILE+4, TILE-8, TILE-8, '#00ffbf', 12);
+  }
+
   neonCircle(player.c*TILE+TILE/2, player.r*TILE+TILE/2, TILE*0.38, '#00ffbf', 10);
   for (const g of ghosts){
     neonCircle(g.c*TILE+TILE/2, g.r*TILE+TILE/2, TILE*0.38, `hsl(${g.hue} 100% 60%)`, 10);
   }
   ctx.restore();
 
-  HUD.textContent = `Arcade Tron — Dots restantes: ${state.dotsLeft}   •   Vidas: ${state.lives}   •   ESC: volver`;
+  const trailHUD = trailActive ? ` • Trail: ${(Math.max(0,trailExpireAt - perf())).toFixed(1)}s` : '';
+  const hideHUD  = inHideout   ? ` • Escondite: ${(Math.max(0,hideoutDeadline - perf())).toFixed(1)}s` : '';
+  HUD.textContent = `Arcade Tron — Dots: ${state.dotsLeft} • Vidas: ${state.lives}${trailHUD}${hideHUD} • ESC: volver`;
   INV.textContent = '';
   PANEL.innerHTML = '';
 }
@@ -367,30 +661,60 @@ function drawArcade(){
 scenes.arcade = {
   enter(){ spawnArcade(); },
   update(dt){
-    if (justPressed.has('Escape')) { justPressed.delete('Escape'); setScene('aventura'); return; }
+    if (justPressed.has('Escape')) {
+      justPressed.delete('Escape');
+      setScene('aventura');
+      return;
+    }
     if (arcadePaused) return;
 
     handlePlayer(dt);
+    updateTrail();
 
-    // Separation: reserve next cells at intersections
-    const reserved = new Set();
-    const order = ghosts.slice().sort(()=>Math.random()-0.5); // avoid bias
-    order.forEach(g=>stepGhost(g, dt, reserved));
-
-    if (checkLose()){
+    if (inHideout && perf() > hideoutDeadline){
+      inHideout = false;
       state.lives -= 1;
       if (state.lives <= 0){
         state.lives = 3;
         spawnArcade();
-        toast("Has sido absorbido por los Centinelas. Reinicio del circuito.");
+        toast("Te quedaste en el escondite. Reinicio del circuito.");
       } else {
         spawnArcade();
-        toast("Impacto detectado. Vida -1.");
+        toast("Te quedaste en el escondite. Vida -1.");
       }
-    } else if (state.dotsLeft <= 0){
+      return;
+    }
+
+    const reserved = new Set();
+    ghosts.slice().sort(()=>Math.random()-0.5).forEach(g=>stepGhost(g, dt, reserved));
+
+    if (!pendingQuiz && checkLose()){
+      pendingQuiz = true;
+      arcadePaused = true;
+      ask8BitQuestion((correct)=>{
+        pendingQuiz = false;
+        arcadePaused = false;
+        if (correct){
+          scatterGhosts();
+          toast("Respuesta correcta. Conservas la vida.");
+        } else {
+          state.lives -= 1;
+          if (state.lives <= 0){
+            state.lives = 3;
+            spawnArcade();
+            toast("Respuesta incorrecta. Reinicio del circuito.");
+          } else {
+            spawnArcade();
+            toast("Respuesta incorrecta. Vida -1.");
+          }
+        }
+      });
+      return;
+    }
+
+    if (state.dotsLeft <= 0){
       state.inventory.chipAzul = true;
       renderInventario();
-      // Pause and return to aventura only when OK is clicked.
       toast("¡CHIP AZUL obtenido!", ()=> setScene('aventura'));
       arcadePaused = true;
     }
@@ -398,10 +722,15 @@ scenes.arcade = {
   draw(){ drawArcade(); }
 };
 
-/* ======= Escena: Final ======= */
+/* ======= Final ======= */
 scenes.final = {
   enter(){ HUD.textContent = ""; PANEL.innerHTML = ""; },
-  update(dt){ if (justPressed.has('Enter')) { justPressed.delete('Enter'); setScene('menu'); } },
+  update(dt){
+    if (justPressed.has('Enter')) {
+      justPressed.delete('Enter');
+      setScene('menu');
+    }
+  },
   draw(){
     drawNeonGrid('#06182a','#00243d');
     ctx.textAlign='center';
@@ -415,52 +744,111 @@ scenes.final = {
     ctx.font='400 18px system-ui';
     ctx.fillText('Completaste LA RED AZUL — Enter para volver al menú', W/2, 250);
     for(let i=0;i<6;i++){
-      neonCircle(W/2 + Math.sin(perf()*0.8+i)*140, 320+Math.cos(perf()*1.1+i)*20, 10, i%2? '#00e5ff' : '#00ff99', 12);
+      neonCircle(
+        W/2 + Math.sin(perf()*0.8+i)*140,
+        320+Math.cos(perf()*1.1+i)*20,
+        10,
+        i%2? '#00e5ff' : '#00ff99',
+        12
+      );
     }
   }
 };
 
 /* ================================
-   UI auxiliares / dibujo
+   Dibujo/UI utils
 ===================================*/
-function perf(){ return performance.now()/1000; }
 function drawNeonGrid(c1, c2){
   const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,c1); g.addColorStop(1,c2);
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  g.addColorStop(0,c1);
+  g.addColorStop(1,c2);
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,W,H);
   ctx.save();
-  ctx.strokeStyle='rgba(0,255,255,0.15)'; ctx.shadowColor='#00e5ff'; ctx.shadowBlur=12; ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(0,255,255,0.15)';
+  ctx.shadowColor='#00e5ff';
+  ctx.shadowBlur=12;
+  ctx.lineWidth=1;
   const step=40;
-  for(let x=0;x<=W;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for(let y=0;y<=H;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  for(let x=0;x<=W;x+=step){
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,H);
+    ctx.stroke();
+  }
+  for(let y=0;y<=H;y+=step){
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(W,y);
+    ctx.stroke();
+  }
   ctx.restore();
 }
-function neonRect(x,y,w,h,color,blur=12){ ctx.save(); ctx.strokeStyle=color; ctx.shadowColor=color; ctx.shadowBlur=blur; ctx.strokeRect(x+0.5,y+0.5,w-1,h-1); ctx.restore(); }
+function neonRect(x,y,w,h,color,blur=12){
+  ctx.save();
+  ctx.strokeStyle=color;
+  ctx.shadowColor=color;
+  ctx.shadowBlur=blur;
+  ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
+  ctx.restore();
+}
 function neonCircle(x,y,r,color,blur=10){
-  ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
-  ctx.shadowColor=color; ctx.shadowBlur=blur; ctx.fillStyle=color; ctx.globalAlpha=0.18; ctx.fill();
-  ctx.globalAlpha=1; ctx.lineWidth=2; ctx.strokeStyle=color; ctx.stroke(); ctx.restore();
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.shadowColor=color;
+  ctx.shadowBlur=blur;
+  ctx.fillStyle=color;
+  ctx.globalAlpha=0.18;
+  ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.lineWidth=2;
+  ctx.strokeStyle=color;
+  ctx.stroke();
+  ctx.restore();
 }
 function drawButton(x,y,w,h,label){
-  neonRect(x,y,w,h,'#00e5ff',14); ctx.fillStyle='rgba(0,255,255,0.08)'; ctx.fillRect(x,y,w,h);
-  ctx.fillStyle='#bff4ff'; ctx.font='700 18px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label, x+w/2, y+h/2);
+  neonRect(x,y,w,h,'#00e5ff',14);
+  ctx.fillStyle='rgba(0,255,255,0.08)';
+  ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='#bff4ff';
+  ctx.font='700 18px system-ui';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(label, x+w/2, y+h/2);
 }
 function hoverButton(x,y,w,h, action){
   const mx = mouse.x, my = mouse.y;
-  if (mx>=x && mx<=x+w && my>=y && my<=y+h){ canvas.style.cursor='pointer'; if (mouse.clicked){ mouse.clicked = false; action(); } }
+  if (mx>=x && mx<=x+w && my>=y && my<=y+h){
+    canvas.style.cursor='pointer';
+    if (mouse.clicked){
+      mouse.clicked = false;
+      action();
+    }
+  }
 }
 function drawModule(box, color){
   neonRect(box.x, box.y, box.w, box.h, color, 12);
-  ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(box.x, box.y, box.w, box.h);
-  ctx.fillStyle = '#bfe9ff'; ctx.font = '600 16px system-ui'; ctx.textAlign='center'; ctx.fillText(box.label, box.x+box.w/2, box.y+box.h/2);
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+  ctx.fillStyle = '#bfe9ff';
+  ctx.font = '600 16px system-ui';
+  ctx.textAlign='center';
+  ctx.fillText(box.label, box.x+box.w/2, box.y+box.h/2);
 }
 function hoverBox(box, tipFn){
   const {x,y} = mouse;
-  if (x>=box.x && x<=box.x+box.w && y>=box.y && y<=box.y+box.h){ canvas.style.cursor='pointer'; tipFn?.(); }
+  if (x>=box.x && x<=box.x+box.w && y>=box.y && y<=box.y+box.h){
+    canvas.style.cursor='pointer';
+    tipFn?.();
+  }
 }
 function clickBox(box, action){
   const {x,y} = mouse;
-  if (mouse.clicked && x>=box.x && x<=box.x+box.w && y>=box.y && y<=box.y+box.h) { mouse.clicked = false; action?.(); }
+  if (mouse.clicked && x>=box.x && x<=box.x+box.w && y>=box.y && y<=box.y+box.h) {
+    mouse.clicked = false;
+    action?.();
+  }
 }
 function tip(text){ HUD.textContent = text; }
 
@@ -471,14 +859,14 @@ function renderInventario(){
   INV.innerHTML = 'Inventario: ' + tags.join('');
 }
 
-/* Modal helpers: pause arcade while any modal is open */
+/* Modales */
 function toast(text, onOk){
   const div = document.createElement('div');
   div.className='msg';
   div.innerHTML = `<h2>Notificación</h2><div>${text}</div>
     <div class="row" style="justify-content:flex-end;margin-top:10px"><div class="btn">OK</div></div>`;
   document.body.appendChild(div);
-  arcadePaused = true; // why: prevent action while modal visible
+  arcadePaused = true;
   div.querySelector('.btn').addEventListener('click', (e)=>{
     e.stopPropagation();
     div.remove();
@@ -486,7 +874,6 @@ function toast(text, onOk){
     onOk?.();
   });
 }
-
 function speak(title, body, choices, onPick){
   const div = document.createElement('div');
   div.className='msg';
@@ -505,27 +892,58 @@ function speak(title, body, choices, onPick){
 }
 
 /* ================================
-   Input: mouse
+   Input
 ===================================*/
 const mouse = { x: 0, y: 0, clicked: false };
 function toCanvasCoords(e){
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width  / rect.width;
   const scaleY = canvas.height / rect.height;
-  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top)  * scaleY };
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY
+  };
 }
-canvas.addEventListener('pointermove', (e)=>{ const p = toCanvasCoords(e); mouse.x = p.x; mouse.y = p.y; });
+canvas.addEventListener('pointermove', (e)=>{
+  const p = toCanvasCoords(e);
+  mouse.x = p.x;
+  mouse.y = p.y;
+});
 canvas.addEventListener('pointerdown', (e)=>{
   if (e.button !== 0) return;
   mouse.clicked = true;
-  const p = toCanvasCoords(e); mouse.x = p.x; mouse.y = p.y;
+  const p = toCanvasCoords(e);
+  mouse.x = p.x;
+  mouse.y = p.y;
   canvas.focus();
 });
-window.addEventListener('pointerup',    ()=> { mouse.clicked = false; });
-window.addEventListener('pointercancel',()=> { mouse.clicked = false; });
+window.addEventListener('pointerup', ()=> { mouse.clicked = false; });
+window.addEventListener('pointercancel', ()=> { mouse.clicked = false; });
+
+/* hook up touch D-pad controls */
+if (touchControls){
+  const buttons = touchControls.querySelectorAll('.tc-btn');
+  buttons.forEach(btn => {
+    const dirKey = btn.dataset.dir;
+    const start = (e) => {
+      e.preventDefault();
+      touchDir = dirKey;
+    };
+    const end = (e) => {
+      e.preventDefault();
+      if (touchDir === dirKey) touchDir = null;
+    };
+    btn.addEventListener('pointerdown', start);
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointerleave', end);
+    btn.addEventListener('pointercancel', end);
+  });
+  window.addEventListener('pointerup', ()=> { touchDir = null; });
+  window.addEventListener('pointercancel', ()=> { touchDir = null; });
+}
 
 /* ================================
-   Bucle principal
+   Loop
 ===================================*/
 function loop(ts){
   const t = ts*0.001;
@@ -539,7 +957,7 @@ function loop(ts){
 }
 
 /* ================================
-   Arranque
+   Boot
 ===================================*/
 setScene('menu');
 requestAnimationFrame(loop);
