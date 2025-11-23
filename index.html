@@ -323,6 +323,20 @@ scenes.aventura = {
   }
 };
 
+/* ======= Helper para randomizar respuestas ======= */
+function shuffleQuestion(q){
+  const idx = q.opts.map((_, i)=>i);
+  for (let i = idx.length - 1; i > 0; i--){
+    const j = (Math.random() * (i + 1)) | 0;
+    const tmp = idx[i];
+    idx[i] = idx[j];
+    idx[j] = tmp;
+  }
+  const newOpts = idx.map(k => q.opts[k]);
+  const newOk = idx.indexOf(q.ok);
+  return { p: q.p, opts: newOpts, ok: newOk };
+}
+
 function abrirAcertijo(onDone){
   const Q = [
     { p: "Tengo ciudades pero no casas, montañas pero no árboles y agua pero no peces. ¿Qué soy?", opts: ["Un mapa","Un circuito","Un holograma","Una base de datos"], ok: 0 },
@@ -331,7 +345,7 @@ function abrirAcertijo(onDone){
   ];
   let i = 0, aciertos = 0;
   const preguntar = () => {
-    const q = Q[i];
+    const q = shuffleQuestion(Q[i]);
     speak("Oráculo de Luz", q.p, q.opts, (pick)=>{
       if (pick === q.ok) aciertos++;
       i++;
@@ -366,8 +380,36 @@ let trailCells = new Map();    // "r,c" -> expireTime
 let lastTrailKey = null;
 
 /* Secret hideout (perimeter cell) */
-const hideout = { r: (ROWS/2)|0, c: 0, enterDir: 'L' }; // enter from inside moving Left into c=0
+let hideout = { r: (ROWS/2)|0, c: 0, enterDir: 'L' }; // se randomiza en spawnArcade
+let hideoutUsed = true; // true para randomizar en el primer spawn
 let inHideout = false, hideoutDeadline = 0;
+
+function randomizeHideout(){
+  const candidates = [];
+
+  // paredes laterales (izq / der), sin esquinas
+  for (let r = 1; r < ROWS - 1; r++){
+    candidates.push({ r, c:0, enterDir:'L' });
+    candidates.push({ r, c:COLS-1, enterDir:'R' });
+  }
+  // paredes superior / inferior, sin esquinas
+  for (let c = 1; c < COLS - 1; c++){
+    candidates.push({ r:0, c, enterDir:'U' });
+    candidates.push({ r:ROWS-1, c, enterDir:'D' });
+  }
+
+  const pick = candidates[(Math.random() * candidates.length) | 0];
+  hideout.r = pick.r;
+  hideout.c = pick.c;
+  hideout.enterDir = pick.enterDir;
+}
+
+function applyHideoutEntrance(g){
+  if (hideout.enterDir === 'L')      g[hideout.r][1]       = 0;
+  else if (hideout.enterDir === 'R') g[hideout.r][COLS-2]  = 0;
+  else if (hideout.enterDir === 'U') g[1][hideout.c]       = 0;
+  else if (hideout.enterDir === 'D') g[ROWS-2][hideout.c]  = 0;
+}
 
 function createMap(){
   const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>1));
@@ -409,16 +451,17 @@ function createMap(){
   });
 
   // hideout entrance adjacent must be open
-  if (hideout.enterDir==='L') g[hideout.r][1] = 0;
-  if (hideout.enterDir==='R') g[hideout.r][COLS-2] = 0;
-  if (hideout.enterDir==='U') g[1][hideout.c] = 0;
-  if (hideout.enterDir==='D') g[ROWS-2][hideout.c] = 0;
+  applyHideoutEntrance(g);
 
   state.dotsLeft = dots.size;
   return g;
 }
 
 function spawnArcade(){
+  if (hideoutUsed){
+    randomizeHideout();
+    hideoutUsed = false;
+  }
   mapGrid = createMap();
   player = { r: (ROWS-2)|0, c: 1, spd: 50.0, dir: null, want: null };
   ghosts = [
@@ -510,6 +553,7 @@ function handlePlayer(dt){
       if (!inHideout){
         inHideout = true;
         hideoutDeadline = now + 10.0;
+        hideoutUsed = true; // marcar que este escondite ya se usó
       }
     } else {
       inHideout = false;
@@ -600,7 +644,8 @@ function ask8BitQuestion(done){
     { p:"El Zilog Z80 es un procesador de…", opts:["8 bits","12 bits","16 bits","4 bits"], ok:0 },
     { p:"¿Qué consola popularizó los cartuchos de 8-bit en 1983?", opts:["NES/Famicom","Atari Jaguar","PlayStation","Dreamcast"], ok:0 }
   ];
-  const q = Q[(Math.random()*Q.length)|0];
+  const raw = Q[(Math.random()*Q.length)|0];
+  const q = shuffleQuestion(raw);
   speak("Desafío 8-bit", q.p, q.opts, (pick)=> done(pick===q.ok));
 }
 
