@@ -373,7 +373,7 @@ function abrirAcertijoArcade(){ arcadePaused = true; abrirAcertijo(()=> { arcade
 const TILE = 24;
 let COLS = 17, ROWS = 17;
 let mapGrid, player, ghosts, dots;
-let powerPellets = new Map();
+let powerPellets = new Set();
 let specialDots = {};
 let arcadePaused = false;
 let pendingQuiz = false;
@@ -414,22 +414,21 @@ const WORLDS = [
     pelletDuration: 7,
     pelletSpeedMult: 2,
     levels: [
-      { map: 'small', ghosts: 3, ghostSpeed: 46, playerSpeed: 50, pellets: 4 },
-      { map: 'medium', ghosts: 4, ghostSpeed: 48, playerSpeed: 50, pellets: 4 },
+      { map: 'small', ghosts: 3, ghostSpeed: 46, playerSpeed: 50, pellets: 2 },
+      { map: 'medium', ghosts: 4, ghostSpeed: 48, playerSpeed: 50, pellets: 3 },
       { map: 'large', ghosts: 5, ghostSpeed: 50, playerSpeed: 50, pellets: 4 }
     ]
   },
   {
     name: 'Mundo 2',
-    pelletPenalty: 0.05,
-    pelletDuration: 7,
-    pelletSpeedMult: 2,
+    pelletSlow: 0.2,
+    pelletSlowDuration: 13,
     pelletNextBonusFirst: 0.02,
     pelletNextBonusRepeat: 0.0025,
     ghostLevelBoost: 0.01,
     levels: [
       { map: 'medium', ghosts: 4, ghostSpeed: 52, playerSpeed: 50, pellets: 4 },
-      { map: 'large',  ghosts: 5, ghostSpeed: 54, playerSpeed: 50, pellets: 4 },
+      { map: 'large',  ghosts: 5, ghostSpeed: 54, playerSpeed: 50, pellets: 2 },
       { map: 'large',  ghosts: 5, ghostSpeed: 56, playerSpeed: 50, pellets: 0 }
     ]
   }
@@ -488,25 +487,16 @@ function createMap(pelletLimit=4){
   const sr = (ROWS/2)|0, sc = (COLS/2)|0;
   specialDots[ sr+','+(sc+2) ] = 'oraculo';
 
-  // power pellets en esquinas (dos de boost/invencibilidad y dos de traza Tron)
-  powerPellets = new Map();
+  // power pellets en esquinas
+  powerPellets = new Set();
   const corners = [
     [1,1],
     [1,COLS-2],
     [ROWS-2,1],
     [ROWS-2,COLS-2]
   ];
-  const totalPellets = Math.min(pelletLimit, corners.length);
-  const powerCount = Math.min(2, totalPellets);
-  const placements = corners.slice(0, totalPellets);
-  placements.forEach(([r,c], idx)=>{
-    if (g[r]?.[c]===0){
-      const type = idx < powerCount ? 'boost' : 'tron';
-      const key = r+','+c;
-      powerPellets.set(key, type);
-      dots.delete(key); // no obligatorias
-    }
-  });
+  corners.slice(0, pelletLimit).forEach(([r,c])=>{ if (g[r]?.[c]===0) powerPellets.add(r+','+c); });
+  powerPellets.forEach(k=> dots.delete(k)); // no obligatorias
 
   // hideout entrance adjacent must be open
   applyHideoutEntrance(g);
@@ -537,21 +527,18 @@ function spawnArcade(){
 
   mapGrid = createMap(level.pellets ?? 0);
 
+  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
+  player = { r: (ROWS-2)|0, c: 1, baseSpeed, dir: null, want: null };
+
   const ghostBase = level.ghostSpeed * (1 + ghostSpeedBoost);
-  const ghostHues = [340, 20, 200, 280, 45];
   ghosts = Array.from({length: level.ghosts}, (_,i)=>({
     r: (i%2===0 ? 1 : ROWS-2),
     c: (i<2 ? COLS-2 : 1),
     spd: world.name === 'Mundo 2' ? ghostBase * 1.05 : ghostBase,
     dir: i%2===0 ? 'L' : 'R',
-    hue: ghostHues[i % ghostHues.length],
+    hue: (i*80)%360,
     turnSlowUntil: 0
   }));
-
-  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
-  const fastestGhost = Math.max(...ghosts.map(g => g.spd));
-  const tunedBase = Math.max(baseSpeed, fastestGhost + 0.1);
-  player = { r: (ROWS-2)|0, c: 1, baseSpeed: tunedBase, dir: null, want: null };
 
   trailActive = false; trailExpireAt = 0; trailCells.clear(); lastTrailKey=null;
   inHideout=false; hideoutDeadline=0;
@@ -608,21 +595,17 @@ function getPlayerSpeed(){
 function applyPowerPellet(){
   const world = currentWorld();
   const now = perf();
-  const duration = world.pelletDuration ?? 7;
-  const mult = world.pelletSpeedMult ?? 2;
-  const penalty = world.pelletPenalty ?? 0.06;
-
-  invincibleUntil = now + duration;
-  speedBoostUntil = invincibleUntil;
-  pendingPenalty += penalty;
-
-  if (progress.world === 1){
+  if (progress.world === 0){
+    invincibleUntil = now + world.pelletDuration;
+    speedBoostUntil = invincibleUntil;
+    pendingPenalty += world.pelletPenalty;
+    toast(`Invencible por ${world.pelletDuration}s, velocidad x${world.pelletSpeedMult}.`);
+  } else {
+    slowUntil = now + world.pelletSlowDuration;
     pelletCountWorld2 += 1;
     const gain = pelletCountWorld2 === 1 ? world.pelletNextBonusFirst : world.pelletNextBonusRepeat;
-    if (gain) pendingCarryBonus += gain;
-    toast(`Modo turbo ${duration}s (x${mult}) + invencible. Próximo nivel +${((gain ?? 0)*100).toFixed(2)}%`);
-  } else {
-    toast(`Invencible por ${duration}s, velocidad x${mult}.`);
+    pendingCarryBonus += gain;
+    toast(`Pastilla absorbida: velocidad reducida ${Math.round(world.pelletSlow*100)}% por ${world.pelletSlowDuration}s. Próximo nivel +${(gain*100).toFixed(2)}%`);
   }
 }
 
@@ -695,13 +678,8 @@ function handlePlayer(dt){
       }
     }
     if (powerPellets.has(key)){
-      const type = powerPellets.get(key);
       powerPellets.delete(key);
-      if (type === 'boost') applyPowerPellet();
-      if (type === 'tron') {
-        activateTrail(10);
-        toast('Traza Tron activa: los fantasmas no pueden cruzar tu estela (10s).');
-      }
+      applyPowerPellet();
     }
   }
 }
@@ -852,17 +830,13 @@ function drawArcade(){
   });
   ctx.shadowBlur = 0;
 
-  powerPellets.forEach((type, k)=>{
+  powerPellets.forEach(k=>{
     const [r,c] = k.split(',').map(Number);
-    const isBoost = type === 'boost';
-    const core = isBoost ? '#4db8ff' : '#ff80ff';
-    const glow = isBoost ? '#2f9fff' : '#ff4dff';
-    ctx.fillStyle = `${isBoost ? 'rgba(77,184,255,0.5)' : 'rgba(255,128,255,0.5)'}`;
+    ctx.fillStyle = 'rgba(0,255,191,0.4)';
     ctx.beginPath();
     ctx.arc(c*TILE+TILE/2, r*TILE+TILE/2, 7, 0, Math.PI*2);
     ctx.fill();
-    neonCircle(c*TILE+TILE/2, r*TILE+TILE/2, 10, glow, 12);
-    neonCircle(c*TILE+TILE/2, r*TILE+TILE/2, 5, core, 10);
+    neonCircle(c*TILE+TILE/2, r*TILE+TILE/2, 10, '#00ffbf', 12);
   });
 
   for (const [k,exp] of trailCells){
