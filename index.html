@@ -527,21 +527,18 @@ function spawnArcade(){
 
   mapGrid = createMap(level.pellets ?? 0);
 
+  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
+  player = { r: (ROWS-2)|0, c: 1, baseSpeed, dir: null, want: null };
+
   const ghostBase = level.ghostSpeed * (1 + ghostSpeedBoost);
-  const ghostHues = [340, 20, 200, 280, 45];
   ghosts = Array.from({length: level.ghosts}, (_,i)=>({
     r: (i%2===0 ? 1 : ROWS-2),
     c: (i<2 ? COLS-2 : 1),
     spd: world.name === 'Mundo 2' ? ghostBase * 1.05 : ghostBase,
     dir: i%2===0 ? 'L' : 'R',
-    hue: ghostHues[i % ghostHues.length],
+    hue: (i*80)%360,
     turnSlowUntil: 0
   }));
-
-  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
-  const fastestGhost = Math.max(...ghosts.map(g => g.spd));
-  const tunedBase = Math.max(baseSpeed, fastestGhost + 0.1);
-  player = { r: (ROWS-2)|0, c: 1, baseSpeed: tunedBase, dir: null, want: null };
 
   trailActive = false; trailExpireAt = 0; trailCells.clear(); lastTrailKey=null;
   inHideout=false; hideoutDeadline=0;
