@@ -367,14 +367,27 @@ function abrirAcertijo(onDone){
 function abrirAcertijoArcade(){ arcadePaused = true; abrirAcertijo(()=> { arcadePaused = false; }); }
 
 /* ======= Arcade ======= */
-const TILE = 24, COLS = 17, ROWS = 17;
+const TILE = 24;
+let COLS = 17, ROWS = 17;
 let mapGrid, player, ghosts, dots;
-let tokens = new Set();
+let powerPellets = new Set();
 let specialDots = {};
 let arcadePaused = false;
 let pendingQuiz = false;
 
-/* Tron trail */
+/* Power-up & velocidad */
+let invincibleUntil = 0;
+let speedBoostUntil = 0;
+let slowUntil = 0;
+let pendingPenalty = 0;
+let speedPenalty = 0;
+let speedBonus = 0;
+let carryBonus = 0;
+let pendingCarryBonus = 0;
+let ghostSpeedBoost = 0;
+let pelletCountWorld2 = 0;
+
+/* Tron trail heredado (se mantiene apagado) */
 let trailActive = false, trailExpireAt = 0;
 let trailCells = new Map();    // "r,c" -> expireTime
 let lastTrailKey = null;
@@ -383,6 +396,42 @@ let lastTrailKey = null;
 let hideout = { r: (ROWS/2)|0, c: 0, enterDir: 'L' }; // se randomiza en spawnArcade
 let hideoutUsed = true; // true para randomizar en el primer spawn
 let inHideout = false, hideoutDeadline = 0;
+
+const MAP_SIZES = {
+  small: { cols: 15, rows: 15 },
+  medium: { cols: 19, rows: 19 },
+  large: { cols: 23, rows: 23 }
+};
+
+const WORLDS = [
+  {
+    name: 'Mundo 1',
+    pelletPenalty: 0.06,
+    completionBonus: 0.02,
+    pelletDuration: 7,
+    pelletSpeedMult: 2,
+    levels: [
+      { map: 'small', ghosts: 3, ghostSpeed: 46, playerSpeed: 50, pellets: 2 },
+      { map: 'medium', ghosts: 4, ghostSpeed: 48, playerSpeed: 50, pellets: 3 },
+      { map: 'large', ghosts: 5, ghostSpeed: 50, playerSpeed: 50, pellets: 4 }
+    ]
+  },
+  {
+    name: 'Mundo 2',
+    pelletSlow: 0.2,
+    pelletSlowDuration: 13,
+    pelletNextBonusFirst: 0.02,
+    pelletNextBonusRepeat: 0.0025,
+    ghostLevelBoost: 0.01,
+    levels: [
+      { map: 'medium', ghosts: 4, ghostSpeed: 52, playerSpeed: 50, pellets: 4 },
+      { map: 'large',  ghosts: 5, ghostSpeed: 54, playerSpeed: 50, pellets: 2 },
+      { map: 'large',  ghosts: 5, ghostSpeed: 56, playerSpeed: 50, pellets: 0 }
+    ]
+  }
+];
+
+let progress = { world: 0, level: 0 };
 
 function randomizeHideout(){
   const candidates = [];
@@ -411,27 +460,18 @@ function applyHideoutEntrance(g){
   else if (hideout.enterDir === 'D') g[ROWS-2][hideout.c]  = 0;
 }
 
-function createMap(){
+function createMap(pelletLimit=4){
   const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>1));
-  const carve = (r0,c0,r1,c1) => { for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) g[r][c]=0; };
-  carve(1,1,ROWS-2,COLS-2);
-  for(let r=3;r<ROWS-3;r+=4){
-    for(let c=2;c<COLS-2;c++){
-      if (c%6!==0) g[r][c]=1;
-    }
-  }
-  for(let c=4;c<COLS-4;c+=6){
-    for(let r=2;r<ROWS-2;r++){
-      if (r%6!==0) g[r][c]=1;
-    }
-  }
-  g[(ROWS/2)|0][(COLS/2)|0]=0;
 
-  for (let r=2;r<ROWS-2;r++){
-    for (let c=2;c<COLS-2;c++){
-      if (g[r][c]===1 && Math.random()<0.18) g[r][c]=0;
-    }
+  // Corrientes de pasillos en filas/columnas impares para que solo se toquen en intersecciones
+  for (let r = 1; r < ROWS-1; r += 2){
+    for (let c = 1; c < COLS-1; c++){ g[r][c] = 0; }
   }
+  for (let c = 1; c < COLS-1; c += 2){
+    for (let r = 1; r < ROWS-1; r++){ g[r][c] = 0; }
+  }
+
+  g[(ROWS/2)|0][(COLS/2)|0]=0;
 
   // dots
   dots = new Set();
@@ -444,11 +484,16 @@ function createMap(){
   const sr = (ROWS/2)|0, sc = (COLS/2)|0;
   specialDots[ sr+','+(sc+2) ] = 'oraculo';
 
-  // tokens
-  tokens = new Set();
-  [[2,2],[2,COLS-3],[ROWS-3,2],[ROWS-3,COLS-3]].forEach(([r,c])=>{
-    if (g[r][c]===0) tokens.add(r+','+c);
-  });
+  // power pellets en esquinas
+  powerPellets = new Set();
+  const corners = [
+    [1,1],
+    [1,COLS-2],
+    [ROWS-2,1],
+    [ROWS-2,COLS-2]
+  ];
+  corners.slice(0, pelletLimit).forEach(([r,c])=>{ if (g[r]?.[c]===0) powerPellets.add(r+','+c); });
+  powerPellets.forEach(k=> dots.delete(k)); // no obligatorias
 
   // hideout entrance adjacent must be open
   applyHideoutEntrance(g);
@@ -457,20 +502,44 @@ function createMap(){
   return g;
 }
 
+function currentWorld(){ return WORLDS[progress.world]; }
+function currentLevel(){ return currentWorld().levels[progress.level]; }
+
+function resetStatus(){
+  invincibleUntil = 0;
+  speedBoostUntil = 0;
+  slowUntil = 0;
+}
+
 function spawnArcade(){
-  if (hideoutUsed){
-    randomizeHideout();
-    hideoutUsed = false;
-  }
-  mapGrid = createMap();
-  player = { r: (ROWS-2)|0, c: 1, spd: 50.0, dir: null, want: null };
-  ghosts = [
-    { r:1,        c:COLS-2, spd:46, dir:'L', hue:300 },
-    { r:1,        c:1,      spd:44, dir:'R', hue:200 },
-    { r:ROWS-2,   c:COLS-2, spd:42, dir:'L', hue:50  }
-  ];
+  const world = currentWorld();
+  const level = currentLevel();
+  const size = MAP_SIZES[level.map];
+  COLS = size.cols; ROWS = size.rows;
+
+  hideout = { r: (ROWS/2)|0, c: 0, enterDir: 'L' };
+  hideoutUsed = true;
+  randomizeHideout();
+  hideoutUsed = false;
+
+  mapGrid = createMap(level.pellets ?? 0);
+
+  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
+  player = { r: (ROWS-2)|0, c: 1, baseSpeed, dir: null, want: null };
+
+  const ghostBase = level.ghostSpeed * (1 + ghostSpeedBoost);
+  ghosts = Array.from({length: level.ghosts}, (_,i)=>({
+    r: (i%2===0 ? 1 : ROWS-2),
+    c: (i<2 ? COLS-2 : 1),
+    spd: world.name === 'Mundo 2' ? ghostBase * 1.05 : ghostBase,
+    dir: i%2===0 ? 'L' : 'R',
+    hue: (i*80)%360,
+    turnSlowUntil: 0
+  }));
+
   trailActive = false; trailExpireAt = 0; trailCells.clear(); lastTrailKey=null;
   inHideout=false; hideoutDeadline=0;
+  resetStatus();
 }
 
 function isWall(r,c){ return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1; }
@@ -509,6 +578,44 @@ function updateTrail(){
   }
 }
 
+function getPlayerSpeed(){
+  const now = perf();
+  let s = player.baseSpeed;
+  if (now < speedBoostUntil) s *= currentWorld().pelletSpeedMult ?? 1;
+  if (now < slowUntil){
+    const slowFactor = currentWorld().pelletSlow ? (1 - currentWorld().pelletSlow) : 1;
+    s *= slowFactor;
+  }
+  return s;
+}
+
+function applyPowerPellet(){
+  const world = currentWorld();
+  const now = perf();
+  if (progress.world === 0){
+    invincibleUntil = now + world.pelletDuration;
+    speedBoostUntil = invincibleUntil;
+    pendingPenalty += world.pelletPenalty;
+    toast(`Invencible por ${world.pelletDuration}s, velocidad x${world.pelletSpeedMult}.`);
+  } else {
+    slowUntil = now + world.pelletSlowDuration;
+    pelletCountWorld2 += 1;
+    const gain = pelletCountWorld2 === 1 ? world.pelletNextBonusFirst : world.pelletNextBonusRepeat;
+    pendingCarryBonus += gain;
+    toast(`Pastilla absorbida: velocidad reducida ${Math.round(world.pelletSlow*100)}% por ${world.pelletSlowDuration}s. Próximo nivel +${(gain*100).toFixed(2)}%`);
+  }
+}
+
+function updatePowerTimers(){
+  const now = perf();
+  if (pendingPenalty > 0 && now >= speedBoostUntil){
+    speedPenalty += pendingPenalty;
+    pendingPenalty = 0;
+  }
+  if (invincibleUntil && now >= invincibleUntil) invincibleUntil = 0;
+  if (slowUntil && now >= slowUntil) slowUntil = 0;
+}
+
 function handlePlayer(dt){
   // combine keyboard arrows + touch D-pad
   const moveUp    = keys.has('ArrowUp')    || touchDir === 'ArrowUp';
@@ -521,7 +628,7 @@ function handlePlayer(dt){
   else if (moveLeft) player.want = 'L';
   else if (moveRight)player.want = 'R';
 
-  const step = (player.spd * dt) / TILE;
+  const step = (getPlayerSpeed() * dt) / TILE;
   const R = Math.round(player.r), C = Math.round(player.c);
 
   if (isAligned(player)){
@@ -567,18 +674,20 @@ function handlePlayer(dt){
         abrirAcertijoArcade();
       }
     }
-    if (tokens.has(key)){
-      tokens.delete(key);
-      activateTrail(10);
+    if (powerPellets.has(key)){
+      powerPellets.delete(key);
+      applyPowerPellet();
     }
   }
 }
 
 function stepGhost(g, dt, reserved){
-  const step = (g.spd * dt) / TILE;
+  const speedFactor = g.turnSlowUntil > perf() ? 0.6 : 1;
+  const step = (g.spd * speedFactor * dt) / TILE;
   const GR = Math.round(g.r), GC = Math.round(g.c);
 
   if (isAligned(g)){
+    const prevDir = g.dir;
     let options = ['U','L','D','R'].filter(d=>{
       if (g.dir && d === OPP[g.dir]) return false;
       const dd = DIRS[d];
@@ -610,6 +719,7 @@ function stepGhost(g, dt, reserved){
       }
     }
     g.dir = picked ?? options[0] ?? g.dir ?? null;
+    if (g.dir && g.dir !== prevDir) g.turnSlowUntil = perf() + 0.6;
   }
 
   if (g.dir && !ghostBlocked(Math.round(g.r) + DIRS[g.dir].dr,
@@ -623,6 +733,7 @@ function stepGhost(g, dt, reserved){
 }
 
 function checkLose(){
+  if (invincibleUntil > perf()) return false;
   const pr = Math.round(player.r), pc = Math.round(player.c);
   for (const g of ghosts){
     const gr = Math.round(g.r), gc = Math.round(g.c);
@@ -631,10 +742,48 @@ function checkLose(){
   return false;
 }
 
+function advanceLevel(){
+  const world = currentWorld();
+  if (pendingPenalty > 0){
+    speedPenalty += pendingPenalty;
+    pendingPenalty = 0;
+  }
+  if (progress.world === 0){
+    speedBonus += world.completionBonus;
+  }
+  carryBonus += pendingCarryBonus;
+  pendingCarryBonus = 0;
+
+  if (progress.world === 1){
+    ghostSpeedBoost += world.ghostLevelBoost;
+  }
+
+  progress.level++;
+  if (progress.level >= world.levels.length){
+    progress.world++;
+    progress.level = 0;
+    pelletCountWorld2 = 0;
+  }
+
+  if (progress.world >= WORLDS.length){
+    state.inventory.chipAzul = true;
+    renderInventario();
+    toast("¡CHIP AZUL obtenido!", ()=> setScene('aventura'));
+    arcadePaused = true;
+    return;
+  }
+
+  toast(`Nivel completado — ${currentWorld().name} ${progress.level+1}`);
+  spawnArcade();
+}
+
 function scatterGhosts(){
-  ghosts[0].r=1;        ghosts[0].c=COLS-2; ghosts[0].dir='L';
-  ghosts[1].r=1;        ghosts[1].c=1;      ghosts[1].dir='R';
-  ghosts[2].r=ROWS-2;   ghosts[2].c=COLS-2; ghosts[2].dir='L';
+  ghosts.forEach((g,i)=>{
+    g.r = (i%2===0 ? 1 : ROWS-2);
+    g.c = (i<2 ? COLS-2 : 1);
+    g.dir = i%2===0 ? 'L' : 'R';
+    g.turnSlowUntil = 0;
+  });
 }
 
 function ask8BitQuestion(done){
@@ -678,9 +827,13 @@ function drawArcade(){
   });
   ctx.shadowBlur = 0;
 
-  tokens.forEach(k=>{
+  powerPellets.forEach(k=>{
     const [r,c] = k.split(',').map(Number);
-    neonRect(c*TILE+6, r*TILE+6, TILE-12, TILE-12, '#00ffbf', 10);
+    ctx.fillStyle = 'rgba(0,255,191,0.4)';
+    ctx.beginPath();
+    ctx.arc(c*TILE+TILE/2, r*TILE+TILE/2, 7, 0, Math.PI*2);
+    ctx.fill();
+    neonCircle(c*TILE+TILE/2, r*TILE+TILE/2, 10, '#00ffbf', 12);
   });
 
   for (const [k,exp] of trailCells){
@@ -696,15 +849,21 @@ function drawArcade(){
   }
   ctx.restore();
 
-  const trailHUD = trailActive ? ` • Trail: ${(Math.max(0,trailExpireAt - perf())).toFixed(1)}s` : '';
   const hideHUD  = inHideout   ? ` • Escondite: ${(Math.max(0,hideoutDeadline - perf())).toFixed(1)}s` : '';
-  HUD.textContent = `Arcade Tron — Dots: ${state.dotsLeft} • Vidas: ${state.lives}${trailHUD}${hideHUD} • ESC: volver`;
+  const invHUD   = invincibleUntil>perf() ? ` • Inv: ${(invincibleUntil - perf()).toFixed(1)}s` : '';
+  const slowHUD  = slowUntil>perf() ? ` • Lentitud: ${(slowUntil - perf()).toFixed(1)}s` : '';
+  const levelHUD = `${currentWorld().name} — Nivel ${progress.level+1}/3`;
+  HUD.textContent = `${levelHUD} • Dots: ${state.dotsLeft} • Vidas: ${state.lives}${invHUD}${slowHUD}${hideHUD} • ESC: volver`;
   INV.textContent = '';
   PANEL.innerHTML = '';
 }
 
 scenes.arcade = {
-  enter(){ spawnArcade(); },
+  enter(){
+    progress = { world:0, level:0 };
+    speedPenalty = 0; speedBonus = 0; carryBonus = 0; pendingCarryBonus = 0; ghostSpeedBoost = 0; pelletCountWorld2 = 0;
+    spawnArcade();
+  },
   update(dt){
     if (justPressed.has('Escape')) {
       justPressed.delete('Escape');
@@ -715,6 +874,7 @@ scenes.arcade = {
 
     handlePlayer(dt);
     updateTrail();
+    updatePowerTimers();
 
     if (inHideout && perf() > hideoutDeadline){
       inHideout = false;
@@ -758,10 +918,7 @@ scenes.arcade = {
     }
 
     if (state.dotsLeft <= 0){
-      state.inventory.chipAzul = true;
-      renderInventario();
-      toast("¡CHIP AZUL obtenido!", ()=> setScene('aventura'));
-      arcadePaused = true;
+      advanceLevel();
     }
   },
   draw(){ drawArcade(); }
