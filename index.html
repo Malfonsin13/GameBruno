@@ -374,6 +374,7 @@ const TILE = 24;
 let COLS = 17, ROWS = 17;
 let mapGrid, player, ghosts, dots;
 let powerPellets = new Set();
+let powerPelletTypes = new Map(); // key -> tipo (speed, trail, world)
 let specialDots = {};
 let arcadePaused = false;
 let pendingQuiz = false;
@@ -414,8 +415,8 @@ const WORLDS = [
     pelletDuration: 7,
     pelletSpeedMult: 2,
     levels: [
-      { map: 'small', ghosts: 3, ghostSpeed: 46, playerSpeed: 50, pellets: 2 },
-      { map: 'medium', ghosts: 4, ghostSpeed: 48, playerSpeed: 50, pellets: 3 },
+      { map: 'small', ghosts: 3, ghostSpeed: 46, playerSpeed: 50, pellets: 4 },
+      { map: 'medium', ghosts: 4, ghostSpeed: 48, playerSpeed: 50, pellets: 4 },
       { map: 'large', ghosts: 5, ghostSpeed: 50, playerSpeed: 50, pellets: 4 }
     ]
   },
@@ -428,8 +429,8 @@ const WORLDS = [
     ghostLevelBoost: 0.01,
     levels: [
       { map: 'medium', ghosts: 4, ghostSpeed: 52, playerSpeed: 50, pellets: 4 },
-      { map: 'large',  ghosts: 5, ghostSpeed: 54, playerSpeed: 50, pellets: 2 },
-      { map: 'large',  ghosts: 5, ghostSpeed: 56, playerSpeed: 50, pellets: 0 }
+      { map: 'large',  ghosts: 5, ghostSpeed: 54, playerSpeed: 50, pellets: 4 },
+      { map: 'large',  ghosts: 5, ghostSpeed: 56, playerSpeed: 50, pellets: 4 }
     ]
   }
 ];
@@ -463,17 +464,41 @@ function applyHideoutEntrance(g){
   else if (hideout.enterDir === 'D') g[ROWS-2][hideout.c]  = 0;
 }
 
-function createMap(pelletLimit=4){
+function createMap(){
   const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>1));
 
-  // Corrientes de pasillos en filas/columnas impares para que solo se toquen en intersecciones
-  for (let r = 1; r < ROWS-1; r += 2){
-    for (let c = 1; c < COLS-1; c++){ g[r][c] = 0; }
-  }
-  for (let c = 1; c < COLS-1; c += 2){
-    for (let r = 1; r < ROWS-1; r++){ g[r][c] = 0; }
+  function shuffle(arr){
+    for (let i = arr.length - 1; i > 0; i--){
+      const j = (Math.random() * (i + 1)) | 0;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   }
 
+  function carve(r,c){
+    g[r][c] = 0;
+    const dirs = shuffle([[0,2],[0,-2],[2,0],[-2,0]]);
+    for (const [dr,dc] of dirs){
+      const nr = r + dr, nc = c + dc;
+      if (nr <= 0 || nc <= 0 || nr >= ROWS-1 || nc >= COLS-1) continue;
+      if (g[nr][nc] === 1){
+        g[r + dr/2][c + dc/2] = 0;
+        carve(nr, nc);
+      }
+    }
+  }
+
+  carve(1,1);
+
+  // abrir celdas aleatorias para dar más loops y formas irregulares
+  const extraOpens = Math.max(6, ((ROWS*COLS)/18)|0);
+  for (let i=0;i<extraOpens;i++){
+    const r = (Math.random() * (ROWS-3) | 0) + 1;
+    const c = (Math.random() * (COLS-3) | 0) + 1;
+    g[r][c] = 0;
+  }
+
+  // espacio central despejado
   g[(ROWS/2)|0][(COLS/2)|0]=0;
 
   // dots
@@ -489,13 +514,21 @@ function createMap(pelletLimit=4){
 
   // power pellets en esquinas
   powerPellets = new Set();
+  powerPelletTypes = new Map();
   const corners = [
     [1,1],
     [1,COLS-2],
     [ROWS-2,1],
     [ROWS-2,COLS-2]
   ];
-  corners.slice(0, pelletLimit).forEach(([r,c])=>{ if (g[r]?.[c]===0) powerPellets.add(r+','+c); });
+  const pelletOrder = ['speed','speed','trail','world'];
+  corners.forEach(([r,c],i)=>{
+    if (g[r]?.[c]===0){
+      const key = r+','+c;
+      powerPellets.add(key);
+      powerPelletTypes.set(key, pelletOrder[i] ?? 'world');
+    }
+  });
   powerPellets.forEach(k=> dots.delete(k)); // no obligatorias
 
   // hideout entrance adjacent must be open
@@ -525,7 +558,7 @@ function spawnArcade(){
   randomizeHideout();
   hideoutUsed = false;
 
-  mapGrid = createMap(level.pellets ?? 0);
+  mapGrid = createMap();
 
   const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
   player = { r: (ROWS-2)|0, c: 1, baseSpeed, dir: null, want: null };
@@ -592,20 +625,30 @@ function getPlayerSpeed(){
   return s;
 }
 
-function applyPowerPellet(){
+function applyPowerPellet(kind='world'){
   const world = currentWorld();
   const now = perf();
-  if (progress.world === 0){
+  if (kind === 'trail'){
+    activateTrail(12);
+    toast('Estela Tron activa: los orbes no pueden cruzar tu rastro.');
+  } else if (kind === 'speed'){
     invincibleUntil = now + world.pelletDuration;
     speedBoostUntil = invincibleUntil;
     pendingPenalty += world.pelletPenalty;
-    toast(`Invencible por ${world.pelletDuration}s, velocidad x${world.pelletSpeedMult}.`);
+    toast(`Turbo x${world.pelletSpeedMult} durante ${world.pelletDuration}s.`);
   } else {
-    slowUntil = now + world.pelletSlowDuration;
-    pelletCountWorld2 += 1;
-    const gain = pelletCountWorld2 === 1 ? world.pelletNextBonusFirst : world.pelletNextBonusRepeat;
-    pendingCarryBonus += gain;
-    toast(`Pastilla absorbida: velocidad reducida ${Math.round(world.pelletSlow*100)}% por ${world.pelletSlowDuration}s. Próximo nivel +${(gain*100).toFixed(2)}%`);
+    if (progress.world === 0){
+      invincibleUntil = now + world.pelletDuration;
+      speedBoostUntil = invincibleUntil;
+      pendingPenalty += world.pelletPenalty;
+      toast(`Invencible por ${world.pelletDuration}s, velocidad x${world.pelletSpeedMult}.`);
+    } else {
+      slowUntil = now + world.pelletSlowDuration;
+      pelletCountWorld2 += 1;
+      const gain = pelletCountWorld2 === 1 ? world.pelletNextBonusFirst : world.pelletNextBonusRepeat;
+      pendingCarryBonus += gain;
+      toast(`Pastilla absorbida: velocidad reducida ${Math.round(world.pelletSlow*100)}% por ${world.pelletSlowDuration}s. Próximo nivel +${(gain*100).toFixed(2)}%`);
+    }
   }
 }
 
@@ -679,7 +722,9 @@ function handlePlayer(dt){
     }
     if (powerPellets.has(key)){
       powerPellets.delete(key);
-      applyPowerPellet();
+      const kind = powerPelletTypes.get(key) || 'world';
+      powerPelletTypes.delete(key);
+      applyPowerPellet(kind);
     }
   }
 }
