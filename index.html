@@ -379,8 +379,6 @@ let specialDots = {};
 let arcadePaused = false;
 let pendingQuiz = false;
 
-const GHOST_COLORS = ['#2aa3ff', '#ffd447', '#ff4b4b'];
-
 /* Power-up & velocidad */
 let invincibleUntil = 0;
 let speedBoostUntil = 0;
@@ -571,7 +569,7 @@ function spawnArcade(){
     c: (i<2 ? COLS-2 : 1),
     spd: world.name === 'Mundo 2' ? ghostBase * 1.05 : ghostBase,
     dir: i%2===0 ? 'L' : 'R',
-    color: GHOST_COLORS[i % GHOST_COLORS.length],
+    hue: (i*80)%360,
     turnSlowUntil: 0
   }));
 
@@ -895,7 +893,7 @@ function drawArcade(){
 
   neonCircle(player.c*TILE+TILE/2, player.r*TILE+TILE/2, TILE*0.38, '#00ffbf', 10);
   for (const g of ghosts){
-    neonCircle(g.c*TILE+TILE/2, g.r*TILE+TILE/2, TILE*0.38, g.color, 10);
+    neonCircle(g.c*TILE+TILE/2, g.r*TILE+TILE/2, TILE*0.38, `hsl(${g.hue} 100% 60%)`, 10);
   }
   ctx.restore();
 
