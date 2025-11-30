@@ -467,7 +467,31 @@ function applyHideoutEntrance(g){
 }
 
 function createMap(){
-  const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>1));
+  // Grid conventions: 1 = wall, 0 = open
+  const g = Array.from({length: ROWS}, () => Array.from({length: COLS}, () => 0));
+
+  // --- Helpers (scoped) ---
+  const key = (r,c) => r + ',' + c;
+
+  function inBounds(r,c){ return r >= 0 && c >= 0 && r < ROWS && c < COLS; }
+
+  function neighbors4(r,c){
+    return [[-1,0],[1,0],[0,-1],[0,1]]
+      .map(([dr,dc]) => [r+dr, c+dc])
+      .filter(([rr,cc]) => inBounds(rr,cc));
+  }
+
+  function neighbors8(r,c){
+    const out = [];
+    for (let dr=-1; dr<=1; dr++){
+      for (let dc=-1; dc<=1; dc++){
+        if (dr===0 && dc===0) continue;
+        const rr = r+dr, cc = c+dc;
+        if (inBounds(rr,cc)) out.push([rr,cc]);
+      }
+    }
+    return out;
+  }
 
   function shuffle(arr){
     for (let i = arr.length - 1; i > 0; i--){
@@ -477,69 +501,138 @@ function createMap(){
     return arr;
   }
 
-  function carve(r,c){
-    g[r][c] = 0;
-    const dirs = shuffle([[0,2],[0,-2],[2,0],[-2,0]]);
-    for (const [dr,dc] of dirs){
-      const nr = r + dr, nc = c + dc;
-      if (nr <= 0 || nc <= 0 || nr >= ROWS-1 || nc >= COLS-1) continue;
-      if (g[nr][nc] === 1){
-        g[r + dr/2][c + dc/2] = 0;
-        carve(nr, nc);
+  function canPlaceCell(r, c, clusterSet){
+    if (g[r][c] !== 0) return false;
+    // Disallow adjacency (8-neighbors) to any wall that is not part of this cluster.
+    for (const [rr,cc] of neighbors8(r,c)){
+      if (g[rr][cc] === 1 && !clusterSet.has(key(rr,cc))) return false;
+    }
+    return true;
+  }
+
+  function growCluster(seedR, seedC, maxSize){
+    const cluster = new Set();
+    cluster.add(key(seedR, seedC));
+
+    // Temporarily mark seed as wall to let canPlaceCell allow touching within same cluster
+    g[seedR][seedC] = 1;
+
+    // Expand using a simple frontier over 4-neighbors
+    while (cluster.size < maxSize){
+      // Build candidate frontier from current cluster perimeter
+      const frontier = [];
+      for (const k of cluster){
+        const [r,c] = k.split(',').map(Number);
+        for (const [rr,cc] of neighbors4(r,c)){
+          if (g[rr][cc] !== 0) continue; // already wall or out
+          // Ensure this candidate doesn't touch perimeter or other clusters
+          if (!canPlaceCell(rr, cc, cluster)) continue;
+          // Also ensure we remain ≥1 open tile away from perimeter wall ring:
+          // If any 8-neighbor is the actual perimeter wall, canPlaceCell would have failed already.
+          frontier.push([rr,cc]);
+        }
       }
+      if (frontier.length === 0) break;
+      shuffle(frontier);
+      const [nr,nc] = frontier[0];
+      g[nr][nc] = 1;
+      cluster.add(key(nr,nc));
+    }
+
+    // Commit is already done (we marked g[][] = 1 during growth)
+    return cluster.size;
+  }
+
+  // --- Build: outer ring walls ---
+  for (let r = 0; r < ROWS; r++){
+    g[r][0] = 1; g[r][COLS-1] = 1;
+  }
+  for (let c = 0; c < COLS; c++){
+    g[0][c] = 1; g[ROWS-1][c] = 1;
+  }
+
+  // --- Place clusters (small, isolated, away from perimeter) ---
+  const area = (ROWS - 2) * (COLS - 2);
+  const targetClusters = Math.max(6, Math.min(20, (area / 40) | 0)); // tuned density
+
+  let placed = 0, attempts = 0;
+  const maxAttempts = targetClusters * 120;
+
+  while (placed < targetClusters && attempts < maxAttempts){
+    attempts++;
+    // Seed must be ≥2 tiles away from border to guarantee a gap from perimeter walls
+    const r = 2 + ((Math.random() * (ROWS - 4)) | 0);
+    const c = 2 + ((Math.random() * (COLS - 4)) | 0);
+
+    // Reject if already wall or would touch any non-cluster wall (perimeter or other cluster)
+    if (g[r][c] !== 0) continue;
+    const tmpSet = new Set(); // empty cluster context for seed
+    if (!canPlaceCell(r, c, tmpSet)) continue;
+
+    const maxSize = 1 + ((Math.random() * 5) | 0); // 1..5
+    const size = growCluster(r, c, maxSize);
+    if (size > 0) placed++;
+  }
+
+  // --- Ensure important gameplay cells are open ---
+  // Center clear (small pad keeps arena readable)
+  const cr = (ROWS / 2) | 0, cc = (COLS / 2) | 0;
+  for (let dr = -1; dr <= 1; dr++){
+    for (let dc = -1; dc <= 1; dc++){
+      const rr = cr + dr, rc = cc + dc;
+      if (inBounds(rr, rc)) g[rr][rc] = 0;
     }
   }
 
-  carve(1,1);
-
-  // abrir celdas aleatorias para dar más loops y formas irregulares
-  const extraOpens = Math.max(6, ((ROWS*COLS)/18)|0);
-  for (let i=0;i<extraOpens;i++){
-    const r = (Math.random() * (ROWS-3) | 0) + 1;
-    const c = (Math.random() * (COLS-3) | 0) + 1;
-    g[r][c] = 0;
+  // Spawn cells should never be walls
+  const spawnCells = [
+    [(ROWS-2) | 0, 1],                // player
+    [1, COLS-2],                      // ghost seed
+    [ROWS-2, 1],                      // ghost seed (exists already but safe)
+    [1, 1], [1, COLS-2], [ROWS-2, 1], [ROWS-2, COLS-2] // pellet corners (interior corners)
+  ];
+  for (const [rr, rc] of spawnCells){
+    if (inBounds(rr, rc)) g[rr][rc] = 0;
   }
 
-  // espacio central despejado
-  g[(ROWS/2)|0][(COLS/2)|0]=0;
-
-  // dots
+  // --- Dots over every open interior cell ---
   dots = new Set();
-  for(let r=1;r<ROWS-1;r++)
-    for(let c=1;c<COLS-1;c++)
-      if (g[r][c]===0) dots.add(r+','+c);
+  for (let r = 1; r < ROWS - 1; r++){
+    for (let c = 1; c < COLS - 1; c++){
+      if (g[r][c] === 0) dots.add(key(r,c));
+    }
+  }
 
-  // mid-room oracle trigger
+  // Special mid-room oracle trigger (kept as-is)
   specialDots = {};
-  const sr = (ROWS/2)|0, sc = (COLS/2)|0;
-  specialDots[ sr+','+(sc+2) ] = 'oraculo';
+  specialDots[ cr + ',' + (cc + 2) ] = 'oraculo';
 
-  // power pellets en esquinas
+  // --- Power pellets in the four interior corners (if open) ---
   powerPellets = new Set();
   powerPelletTypes = new Map();
   const corners = [
     [1,1],
-    [1,COLS-2],
-    [ROWS-2,1],
-    [ROWS-2,COLS-2]
+    [1, COLS - 2],
+    [ROWS - 2, 1],
+    [ROWS - 2, COLS - 2]
   ];
   const pelletOrder = ['speed','speed','trail','world'];
-  corners.forEach(([r,c],i)=>{
-    if (g[r]?.[c]===0){
-      const key = r+','+c;
-      powerPellets.add(key);
-      powerPelletTypes.set(key, pelletOrder[i] ?? 'world');
+  corners.forEach(([r,c], i) => {
+    if (g[r]?.[c] === 0){
+      const k = key(r,c);
+      powerPellets.add(k);
+      powerPelletTypes.set(k, pelletOrder[i] ?? 'world');
+      dots.delete(k); // pellets are optional, don’t count as dots
     }
   });
-  powerPellets.forEach(k=> dots.delete(k)); // no obligatorias
 
-  // hideout entrance adjacent must be open
+  // Keep the hideout interior entrance open
   applyHideoutEntrance(g);
 
   state.dotsLeft = dots.size;
   return g;
 }
-
+ 
 function currentWorld(){ return WORLDS[progress.world]; }
 function currentLevel(){ return currentWorld().levels[progress.level]; }
 
