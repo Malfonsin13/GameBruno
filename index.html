@@ -467,65 +467,37 @@ function applyHideoutEntrance(g){
 }
 
 function createMap(){
-  // base: todo vacío excepto el borde exterior amurallado
-  const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>0));
-  for (let r=0;r<ROWS;r++) g[r][0] = g[r][COLS-1] = 1;
-  for (let c=0;c<COLS;c++) g[0][c] = g[ROWS-1][c] = 1;
+  const g = Array.from({length:ROWS}, ()=>Array.from({length:COLS}, ()=>1));
 
-  const wallNeighbors = [[1,0],[-1,0],[0,1],[0,-1]];
-  const borderGap = 2; // separación mínima con la pared exterior
+  function shuffle(arr){
+    for (let i = arr.length - 1; i > 0; i--){
+      const j = (Math.random() * (i + 1)) | 0;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
 
-  const areaIsClear = (cells)=>{
-    const set = new Set(cells.map(c=>c.r+','+c.c));
-    for (const {r,c} of cells){
-      // mantener margen contra el muro exterior para evitar pasillos de 1 celda
-      if (r <= borderGap || c <= borderGap || r >= ROWS-1-borderGap || c >= COLS-1-borderGap) return false;
-      for (let dr=-1; dr<=1; dr++){
-        for (let dc=-1; dc<=1; dc++){
-          const rr = r+dr, cc = c+dc;
-          if (rr < 0 || cc < 0 || rr >= ROWS || cc >= COLS) return false;
-          if (!set.has(rr+','+cc) && g[rr][cc] === 1) return false;
-        }
+  function carve(r,c){
+    g[r][c] = 0;
+    const dirs = shuffle([[0,2],[0,-2],[2,0],[-2,0]]);
+    for (const [dr,dc] of dirs){
+      const nr = r + dr, nc = c + dc;
+      if (nr <= 0 || nc <= 0 || nr >= ROWS-1 || nc >= COLS-1) continue;
+      if (g[nr][nc] === 1){
+        g[r + dr/2][c + dc/2] = 0;
+        carve(nr, nc);
       }
     }
-    return true;
-  };
+  }
 
-  const targetShapes = Math.max(8, ((ROWS * COLS) / 35) | 0);
-  let placed = 0, attempts = 0;
+  carve(1,1);
 
-  while (placed < targetShapes && attempts < targetShapes * 20){
-    attempts++;
-    const size = 2 + ((Math.random() * 4) | 0); // 2..5
-    const start = {
-      r: ((Math.random() * (ROWS - (borderGap*2 + 3))) | 0) + (borderGap + 1),
-      c: ((Math.random() * (COLS - (borderGap*2 + 3))) | 0) + (borderGap + 1)
-    };
-
-    let cells = [start];
-    while (cells.length < size){
-      const base = cells[(Math.random() * cells.length) | 0];
-      const options = wallNeighbors
-        .map(([dr,dc])=>({ r: base.r + dr, c: base.c + dc }))
-        .filter(p=> p.r > borderGap && p.c > borderGap && p.r < ROWS-1-borderGap && p.c < COLS-1-borderGap)
-        .filter(p=> !cells.some(c=>c.r===p.r && c.c===p.c));
-      if (options.length === 0) break;
-      cells.push(options[(Math.random() * options.length) | 0]);
-    }
-
-    // quitar duplicados
-    const uniq = [];
-    const seen = new Set();
-    for (const c of cells){
-      const k = c.r+','+c.c;
-      if (!seen.has(k)){ uniq.push(c); seen.add(k); }
-    }
-    cells = uniq.slice(0, 5); // limite duro de 5 celdas por estructura
-
-    if (!areaIsClear(cells)) continue;
-
-    for (const {r,c} of cells) g[r][c] = 1;
-    placed++;
+  // abrir celdas aleatorias para dar más loops y formas irregulares
+  const extraOpens = Math.max(6, ((ROWS*COLS)/18)|0);
+  for (let i=0;i<extraOpens;i++){
+    const r = (Math.random() * (ROWS-3) | 0) + 1;
+    const c = (Math.random() * (COLS-3) | 0) + 1;
+    g[r][c] = 0;
   }
 
   // espacio central despejado
