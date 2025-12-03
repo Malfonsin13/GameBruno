@@ -763,12 +763,46 @@ function spawnArcade(){
   resetStatus();
 }
 
-  function isWall(r,c){ return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1; }
+function respawnArcadeSameMap(){
+  const world = currentWorld();
+  const level = currentLevel();
+
+  // Keep ROWS/COLS/mapGrid/dots/powerPellets as-is
+  const centerR = (ROWS/2)|0;
+  const centerC = (COLS/2)|0;
+
+  // Ensure center is walkable so spawn is always valid
+  if (mapGrid[centerR][centerC] === 1) mapGrid[centerR][centerC] = 0;
+
+  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
+  player = { r: centerR, c: centerC, baseSpeed, dir: null, want: null };
+
+  // Fresh ghosts (same logic as spawnArcade), keep hideout as-is
+  const ghostBase = level.ghostSpeed * (1 + ghostSpeedBoost);
+  ghosts = Array.from({length: level.ghosts}, (_,i)=>({
+    r: (i%2===0 ? 1 : ROWS-2),
+    c: (i<2 ? COLS-2 : 1),
+    spd: world.name === 'Mundo 2' ? ghostBase * 1.05 : ghostBase,
+    dir: i%2===0 ? 'L' : 'R',
+    color: GHOST_COLORS[i % GHOST_COLORS.length],
+    turnSlowUntil: 0
+  }));
+
+  // Reset transient state; keep dots/pellets progress
+  trailActive = false; trailExpireAt = 0; trailCells.clear(); lastTrailKey=null;
+  inHideout=false; hideoutDeadline=0;
+  resetStatus();
+  state.dotsLeft = dots.size; // reflect remaining dots
+}
+  
+function isWall(r,c){ return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1; }
+
 function isTrailCell(r,c){
   const k = r+','+c;
   const t = trailCells.get(k);
   return t !== undefined && t > perf();
 }
+
 function ghostBlocked(r,c){ return isWall(r,c) || isTrailCell(r,c) || (r===hideout.r && c===hideout.c); } // ghosts never enter hideout
 
 /* Player-only movement rules w/ hideout */
@@ -1098,10 +1132,10 @@ scenes.arcade = {
       state.lives -= 1;
       if (state.lives <= 0){
         state.lives = 3;
-        spawnArcade();
+        spawnArcade(); // full reset: map + dots
         toast("Te quedaste en el escondite. Reinicio del circuito.");
       } else {
-        spawnArcade();
+        respawnArcadeSameMap(); // keep dots eaten
         toast("Te quedaste en el escondite. Vida -1.");
       }
       return;
@@ -1112,8 +1146,12 @@ scenes.arcade = {
 
     if (checkLose()){
       state.lives -= 1;
-      if (state.lives <= 0) state.lives = 3;
-      spawnArcade();
+      if (state.lives <= 0){
+        state.lives = 3;
+        spawnArcade();          // full reset: map + dots
+      } else {
+        respawnArcadeSameMap(); // keep dots eaten
+      }
       toast("Vida -1.");
       return;
     }
