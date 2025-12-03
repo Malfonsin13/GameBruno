@@ -367,7 +367,6 @@ function abrirAcertijo(onDone){
   };
   preguntar();
 }
-function abrirAcertijoArcade(){ arcadePaused = true; abrirAcertijo(()=> { arcadePaused = false; }); }
 
 /* ======= Arcade ======= */
 const TILE = 24;
@@ -377,7 +376,6 @@ let powerPellets = new Set();
 let powerPelletTypes = new Map(); // key -> tipo (speed, trail, world)
 let specialDots = {};
 let arcadePaused = false;
-let pendingQuiz = false;
 
 const GHOST_COLORS = ['#2aa3ff', '#ffd447', '#ff4b4b'];
 
@@ -671,9 +669,8 @@ function createMapRandom(){
     }
   }
 
-  // Special mid-room oracle trigger (kept as-is)
-  specialDots = {};
-  specialDots[ cr + ',' + (cc + 2) ] = 'oraculo';
++  // No special mid-room oracle trigger in arcade
++  specialDots = {};
 
   // --- Power pellets in the four interior corners (if open) ---
   powerPellets = new Set();
@@ -884,10 +881,6 @@ function handlePlayer(dt){
     if (dots.has(key)){
       dots.delete(key);
       state.dotsLeft = dots.size;
-      if (specialDots[key] === 'oraculo'){
-        delete specialDots[key];
-        abrirAcertijoArcade();
-      }
     }
     if (powerPellets.has(key)){
       powerPellets.delete(key);
@@ -1003,18 +996,6 @@ function scatterGhosts(){
   });
 }
 
-function ask8BitQuestion(done){
-  const Q = [
-    { p:"¿Qué CPU usa el Commodore 64?", opts:["MOS 6510","Zilog Z80","Motorola 68000","Intel 8086"], ok:0 },
-    { p:"¿Cuántos canales de sonido tiene el chip SID del C64?", opts:["3","1","6","8"], ok:0 },
-    { p:"El Zilog Z80 es un procesador de…", opts:["8 bits","12 bits","16 bits","4 bits"], ok:0 },
-    { p:"¿Qué consola popularizó los cartuchos de 8-bit en 1983?", opts:["NES/Famicom","Atari Jaguar","PlayStation","Dreamcast"], ok:0 }
-  ];
-  const raw = Q[(Math.random()*Q.length)|0];
-  const q = shuffleQuestion(raw);
-  speak("Desafío 8-bit", q.p, q.opts, (pick)=> done(pick===q.ok));
-}
-
 function drawArcade(){
   const offX = (W - COLS*TILE)/2|0;
   const offY = (H - ROWS*TILE)/2|0;
@@ -1110,30 +1091,13 @@ scenes.arcade = {
     const reserved = new Set();
     ghosts.slice().sort(()=>Math.random()-0.5).forEach(g=>stepGhost(g, dt, reserved));
 
-    if (!pendingQuiz && checkLose()){
-      pendingQuiz = true;
-      arcadePaused = true;
-      ask8BitQuestion((correct)=>{
-        pendingQuiz = false;
-        arcadePaused = false;
-        if (correct){
-          scatterGhosts();
-          toast("Respuesta correcta. Conservas la vida.");
-        } else {
-          state.lives -= 1;
-          if (state.lives <= 0){
-            state.lives = 3;
-            spawnArcade();
-            toast("Respuesta incorrecta. Reinicio del circuito.");
-          } else {
-            spawnArcade();
-            toast("Respuesta incorrecta. Vida -1.");
-          }
-        }
-      });
+    if (checkLose()){
+      state.lives -= 1;
+      if (state.lives <= 0) state.lives = 3;
+      spawnArcade();
+      toast("Vida -1.");
       return;
     }
-
     if (state.dotsLeft <= 0){
       advanceLevel();
     }
