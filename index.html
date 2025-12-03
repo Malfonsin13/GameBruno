@@ -495,33 +495,46 @@ const LEVEL2_ORBS = [ [1,1],[1,18],[2,1],[2,18],[4,14],[17,14] ];          // Ce
 const LEVEL2_PELLETS = [ [4,15],[4,16],[6,6],[7,6],[17,4],[17,13] ];        // Lila
 const LEVEL2_SPAWN = [10,10];                                               // Amarillo
 
+// Replace the entire buildLevel2Map() in index.html
 function buildLevel2Map(){
   if (ROWS < 20 || COLS < 20) throw new Error('Level 2 needs at least 20x20.');
   const g = Array.from({length: ROWS}, () => Array.from({length: COLS}, () => 0));
   const key = (r,c) => r + ',' + c;
 
-  // keep an outer ring, then center the 20x20 block (avoids resizing your game)
+  // Perimeter ring
   for (let r=0;r<ROWS;r++){ g[r][0]=1; g[r][COLS-1]=1; }
   for (let c=0;c<COLS;c++){ g[0][c]=1; g[ROWS-1][c]=1; }
 
+  // Center the 20x20 layout
   const offR = ((ROWS - 20) / 2) | 0;
   const offC = ((COLS - 20) / 2) | 0;
-
   for (let r=0;r<20;r++) for (let c=0;c<20;c++) g[offR+r][offC+c] = LEVEL2_WALLS[r][c];
 
-  dots = new Set();                          // Blanco ignored → we only add Celeste
-  for (const [r,c] of LEVEL2_ORBS) dots.add(key(offR+r, offC+c));
+  // --- Dots over EVERY open interior cell (like Level 1) ---
+  dots = new Set();
+  for (let r = 1; r < ROWS - 1; r++){
+    for (let c = 1; c < COLS - 1; c++){
+      if (g[r][c] === 0) dots.add(key(r,c));
+    }
+  }
 
+  // Power pellets
   powerPellets = new Set();
   powerPelletTypes = new Map();
   for (const [r,c] of LEVEL2_PELLETS){
-    const k = key(offR+r, offC+c);
+    const k = key(offR + r, offC + c);
     powerPellets.add(k);
-    powerPelletTypes.set(k, 'world');        // keep existing pellet logic
+    powerPelletTypes.set(k, 'world');
+    dots.delete(k); // pellets are not counted as dots
   }
 
-  specialDots = {};                          // none for this level
-  state.dotsLeft = dots.size;                // don’t count power pellets toward completion
+  // No special oráculo dots
+  specialDots = {};
+
+  // Keep the hideout entrance open (no dot on it, matches Level 1 behavior)
+  applyHideoutEntrance(g);
+
+  state.dotsLeft = dots.size;
   return g;
 }
 
@@ -713,6 +726,7 @@ function spawnArcade(){
   const size = MAP_SIZES[level.map];
   COLS = size.cols; ROWS = size.rows;
 
+  // Hideout setup (unchanged)
   hideout = { r: (ROWS/2)|0, c: 0, enterDir: 'L' };
   hideoutUsed = true;
   randomizeHideout();
@@ -720,15 +734,19 @@ function spawnArcade(){
 
   mapGrid = createMap();
 
-  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
-  player = { r: (ROWS-2)|0, c: 1, baseSpeed, dir: null, want: null };
-    // Level 2 starts at center to match Amarillo
-  if (progress.world === 0 && progress.level === 1) {
-    player.r = (ROWS/2)|0;
-    player.c = (COLS/2)|0;
+  // Always spawn player at center
+  const centerR = (ROWS/2)|0;
+  const centerC = (COLS/2)|0;
+
+  // Make sure the center is walkable; if not, open it.
+  if (mapGrid[centerR][centerC] === 1) {
+    mapGrid[centerR][centerC] = 0;
   }
 
+  const baseSpeed = level.playerSpeed * Math.max(0.35, 1 + speedBonus - speedPenalty + carryBonus);
+  player = { r: centerR, c: centerC, baseSpeed, dir: null, want: null };
 
+  // Ghosts (unchanged)
   const ghostBase = level.ghostSpeed * (1 + ghostSpeedBoost);
   ghosts = Array.from({length: level.ghosts}, (_,i)=>({
     r: (i%2===0 ? 1 : ROWS-2),
@@ -739,12 +757,13 @@ function spawnArcade(){
     turnSlowUntil: 0
   }));
 
+  // Reset transient state (unchanged)
   trailActive = false; trailExpireAt = 0; trailCells.clear(); lastTrailKey=null;
   inHideout=false; hideoutDeadline=0;
   resetStatus();
 }
 
-function isWall(r,c){ return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1; }
+  function isWall(r,c){ return r<0 || c<0 || r>=ROWS || c>=COLS || mapGrid[r][c]===1; }
 function isTrailCell(r,c){
   const k = r+','+c;
   const t = trailCells.get(k);
